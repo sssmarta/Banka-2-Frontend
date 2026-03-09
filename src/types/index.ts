@@ -18,6 +18,7 @@ export interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   position: string;
   phoneNumber: string;
@@ -57,6 +58,7 @@ export interface LoginResponse {
 export interface CreateEmployeeRequest {
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   position: string;
   phoneNumber: string;
@@ -118,6 +120,7 @@ export interface PaginatedResponse<T> {
 export interface AuthUser {
   id: number;
   email: string;
+  username: string;
   firstName: string;
   lastName: string;
   permissions: Permission[];

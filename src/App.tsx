@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import LoginPage from './pages/Login/LoginPage';
+import LandingPage from './pages/Landing/LandingPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPassword/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPassword/ResetPasswordPage';
@@ -15,6 +16,7 @@ export default function App() {
   return (
     <Routes>
       {/* Public routes */}
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -23,7 +25,7 @@ export default function App() {
       {/* Protected routes with layout */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          {/* Employee management – requires READ_USERS */}
+          {/* Employee management – requires ADMIN */}
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees" element={<EmployeeListPage />} />
           </Route>
@@ -37,12 +39,12 @@ export default function App() {
           </Route>
 
           {/* Dashboard */}
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
         </Route>
       </Route>
 
       {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

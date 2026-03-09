@@ -58,6 +58,7 @@ export default function EmployeeCreatePage() {
     defaultValues: {
       firstName: '',
       lastName: '',
+      username: '',
       email: '',
       position: '',
       phoneNumber: '',
@@ -147,6 +148,13 @@ export default function EmployeeCreatePage() {
                 <Input id="email" type="email" {...register('email')} />
                 {errors.email && (
                   <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username *</Label>
+                <Input id="username" placeholder="petar90" {...register('username')} />
+                {errors.username && (
+                  <p className="text-sm text-destructive">{errors.username.message}</p>
                 )}
               </div>
               <div className="space-y-2">

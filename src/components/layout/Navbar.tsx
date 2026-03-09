@@ -24,7 +24,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     label: 'Početna',
-    path: '/',
+    path: '/dashboard',
     icon: <Home className="mr-1.5 h-4 w-4" />,
   },
   {
@@ -52,7 +52,7 @@ export default function Navbar() {
   };
 
   const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
+    if (path === '/dashboard') return location.pathname === '/dashboard';
     return location.pathname.startsWith(path);
   };
 
@@ -61,7 +61,7 @@ export default function Navbar() {
       <div className="container flex h-14 items-center">
         <div
           className="flex cursor-pointer items-center gap-2 font-bold mr-6"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
         >
           <Landmark className="h-5 w-5" />
           <span className="text-lg">Banka 2025</span>

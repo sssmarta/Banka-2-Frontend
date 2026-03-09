@@ -35,22 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginRequest) => {
-    // TODO: ukloniti mock login pre produkcije
-    if (data.email === 'test@test.test' && data.password === 'test') {
-      const mockUser: AuthUser = {
-        id: 1,
-        email: 'test@test.test',
-        firstName: 'Test',
-        lastName: 'Korisnik',
-        permissions: [Permission.ADMIN],
-      };
-      sessionStorage.setItem('accessToken', 'mock-access-token');
-      sessionStorage.setItem('refreshToken', 'mock-refresh-token');
-      sessionStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
-      return;
-    }
-
     const response = await authService.login(data);
 
     sessionStorage.setItem('accessToken', response.accessToken);
@@ -59,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const authUser: AuthUser = {
       id: response.user.id,
       email: response.user.email,
+      username: response.user.username,
       firstName: response.user.firstName,
       lastName: response.user.lastName,
       permissions: response.user.permissions,

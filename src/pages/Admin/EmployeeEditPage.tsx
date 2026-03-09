@@ -159,6 +159,10 @@ export default function EmployeeEditPage() {
                 )}
               </div>
               <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" value={employee?.username || ''} disabled />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Broj telefona</Label>
                 <Input id="phoneNumber" {...register('phoneNumber')} />
                 {errors.phoneNumber && (

@@ -1,73 +1,67 @@
-# React + TypeScript + Vite
+# Banka 2025 - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Admin portal za upravljanje zaposlenima u bankarskom sistemu.
 
-Currently, two official plugins are available:
+## Tehnologije
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** + **TypeScript**
+- **Vite 7** (build tool)
+- **Tailwind CSS 3.4** + shadcn/ui komponente (Radix UI)
+- **React Router DOM v7** (routing)
+- **React Hook Form v7** + **Zod** (forme i validacija)
+- **Axios** (HTTP klijent sa JWT interceptorima)
 
-## React Compiler
+## Pokretanje projekta
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# 1. Instaliraj zavisnosti
+npm install
 
-## Expanding the ESLint configuration
+# 2. Kreiraj .env fajl (kopiraj iz primera)
+cp .env.example .env
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 3. Pokreni development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Aplikacija će biti dostupna na `http://localhost:5173`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Environment varijable
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Varijabla | Opis | Default |
+|-----------|------|---------|
+| `VITE_API_URL` | Base URL za backend API | `http://localhost:8080/api` |
+
+## Struktura projekta
+
+```
+src/
+├── components/
+│   ├── layout/          # MainLayout, Navbar, ProtectedRoute
+│   └── ui/              # shadcn/ui reusable komponente
+├── context/             # AuthContext, ThemeContext
+├── pages/
+│   ├── Login/           # Login stranica
+│   ├── Dashboard/       # Početna stranica
+│   ├── Admin/           # Lista, kreiranje, edit zaposlenih
+│   ├── ActivateAccount/ # Aktivacija naloga
+│   ├── ForgotPassword/  # Zahtev za reset lozinke
+│   └── ResetPassword/   # Reset lozinke
+├── services/            # API pozivi (auth, employee)
+├── types/               # TypeScript tipovi
+└── utils/               # Validacione šeme, helper-i
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+Build output se generiše u `dist/` folderu.
+
+## Linting
+
+```bash
+npm run lint
 ```

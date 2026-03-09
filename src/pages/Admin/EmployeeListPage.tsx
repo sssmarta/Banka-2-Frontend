@@ -166,6 +166,7 @@ export default function EmployeeListPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Ime i prezime</TableHead>
+                <TableHead>Username</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Pozicija</TableHead>
                 <TableHead>Telefon</TableHead>
@@ -177,7 +178,7 @@ export default function EmployeeListPage() {
             <TableBody>
               {employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                     Nema pronađenih zaposlenih
                   </TableCell>
                 </TableRow>
@@ -194,6 +195,7 @@ export default function EmployeeListPage() {
                     <TableCell className="font-medium">
                       {emp.firstName} {emp.lastName}
                     </TableCell>
+                    <TableCell>{emp.username}</TableCell>
                     <TableCell>{emp.email}</TableCell>
                     <TableCell>{emp.position}</TableCell>
                     <TableCell>{emp.phoneNumber}</TableCell>

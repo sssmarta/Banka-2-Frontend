@@ -32,7 +32,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(data);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setServerError(

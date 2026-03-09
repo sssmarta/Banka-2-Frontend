@@ -51,6 +51,7 @@ export type LoginFormData = z.infer<typeof loginSchema>;
 export const createEmployeeSchema = z.object({
   firstName: nameSchema,
   lastName: nameSchema,
+  username: z.string().min(1, 'Username je obavezan'),
   email: emailSchema,
   position: z.string().min(1, 'Pozicija je obavezna'),
   phoneNumber: phoneSchema,
