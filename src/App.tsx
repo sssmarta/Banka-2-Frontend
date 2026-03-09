@@ -43,7 +43,23 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Catch-all */}
+      {/* TODO [FE-23] ELENA KALAJDŽIĆ — Error stranice (404, 500, 403)
+          ZADATAK: Napraviti error stranice u src/pages/Error/ folderu:
+            1. NotFoundPage.tsx (404) — "Stranica nije pronađena"
+            2. ForbiddenPage.tsx (403) — "Nemate dozvolu za pristup"
+            3. ServerErrorPage.tsx (500) — "Greška servera"
+            4. GenericErrorPage.tsx — "Nešto je pošlo naopako"
+          Svaka stranica treba da ima:
+            - Veliku cifru (404/403/500), poruku, predloge korisniku
+            - Dugmad: "Nazad na početnu" → / i sl.
+            - Profesionalan dizajn (pogledaj LoginPage.tsx za primer gradient pozadine)
+            - Dark/light tema podršku, responsive dizajn
+          Ikone: AlertTriangle, ShieldX, ServerCrash, FileQuestion (iz lucide-react)
+          Koristi AI Agent Mode za pomoć!
+          PROMENA ISPOD: Zameni Navigate sa <NotFoundPage /> nakon kreiranja.
+          + Napiši E2E test da nepostojeći URL prikazuje 404 i dugme radi.
+      */}
+      {/* Catch-all — ELENA: zameni Navigate ispod sa <NotFoundPage /> */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,3 +1,18 @@
+// =============================================================================
+// TODO [FE-21] ANTONIJE ILIĆ — Poboljšanje EmployeeCreatePage UI
+// =============================================================================
+// ZADATAK: Poboljšati izgled i UX ove stranice.
+//   1. Grupisanje polja u logične sekcije sa Card wrapper-ima
+//      (Lični podaci, Kontakt, Posao) — delimično već urađeno
+//   2. Sekcije sa jasnijim naslovima (CardHeader + CardTitle)
+//   3. Bolji raspored polja (grid layout: 2 kolone na desktopu, 1 na mobu)
+//   4. Poboljšani error prikaz (highlight polja sa greškom)
+//   5. Sačuvaj/Otkaži dugmad sticky na dnu
+// NAPOMENA: Koristi postojeće shadcn/ui komponente (Card, Separator, etc).
+// Koristi AI Agent Mode za pomoć!
+// + Napiši E2E test koji proverava validaciju na create formi.
+// =============================================================================
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
