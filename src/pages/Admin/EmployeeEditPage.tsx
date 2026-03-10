@@ -23,13 +23,39 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
+// =============================================================================
+// TODO [FE-05] JOVAN KRUNIĆ — Fix: Select dropdown-ovi za Pol, Poziciju i Departman
+// =============================================================================
+// Trenutno Pol, Pozicija i Departman koriste obične <Input> text polja.
+// Korisnik može upisati bilo šta — to je BUG.
+// ZADATAK:
+//   1. Dodaj import za Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+//      iz '@/components/ui/select' (pogledaj EmployeeCreatePage.tsx za primer)
+//   2. Dodaj POSITIONS i DEPARTMENTS nizove (kopiraj iz EmployeeCreatePage.tsx)
+//   3. Zameni <Input id="gender" .../> sa <Select> komponentom (M/F/O opcije)
+//      Koristiti Controller iz react-hook-form (već importovan gore)
+//   4. Zameni <Input id="position" .../> sa <Select> komponentom (10 pozicija)
+//   5. Zameni <Input id="department" .../> sa <Select> komponentom (7 odeljenja)
+// PRIMER: Pogledaj EmployeeCreatePage.tsx — tamo su sva tri polja već Select.
+// Uradi ISTO na ovoj stranici.
+// + Napiši kratak E2E test koji proverava da dropdown-ovi rade na edit stranici.
+// =============================================================================
+
+// =============================================================================
+// TODO [FE-22] ELENA KALAJDŽIĆ — Poboljšanje EmployeeEditPage UI
+// =============================================================================
+// ZADATAK: Poboljšati izgled i UX ove stranice.
+//   1. Grupisanje polja u logične sekcije sa Card wrapper-ima:
+//      - Lični podaci, Kontakt, Posao, Permisije
+//   2. Dodati Card wrapper-e oko svake sekcije sa prikladnim naslovima
+//   3. Lepši prikaz permisija (checkbox grid umesto liste)
+//   4. Loading skeleton dok se podaci učitavaju (umesto spinnera)
+//   5. Bolji responsive dizajn za manje ekrane
+// NAPOMENA: Pogledaj EmployeeCreatePage za stil i uskladi.
+// Koristi shadcn/ui Card, Separator komponente. Koristi AI Agent Mode!
+// + Napiši E2E test koji proverava da edit forma učitava podatke.
+// =============================================================================
 
 const ALL_PERMISSIONS = Object.values(Permission);
 
@@ -250,25 +276,23 @@ export default function EmployeeEditPage() {
                   <p className="text-sm text-destructive">{errors.dateOfBirth.message}</p>
                 )}
               </div>
-
+              {/* TODO [FE-05] JOVAN: Zameni ovaj Input sa Select komponentom (M/F/O)
+                  Primer iz EmployeeCreatePage.tsx:
+                  <Controller name="gender" control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue placeholder="Izaberite pol" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="M">Muški</SelectItem>
+                          <SelectItem value="F">Ženski</SelectItem>
+                          <SelectItem value="O">Ostalo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  /> */}
               <div className="space-y-2">
-                <Label>Pol</Label>
-                <Controller
-                  name="gender"
-                  control={control}
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Izaberite pol" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="M">Muški</SelectItem>
-                        <SelectItem value="F">Ženski</SelectItem>
-                        <SelectItem value="O">Ostalo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+                <Label htmlFor="gender">Pol</Label>
+                <Input id="gender" {...register('gender')} />
                 {errors.gender && (
                   <p className="text-sm text-destructive">{errors.gender.message}</p>
                 )}
@@ -347,7 +371,10 @@ export default function EmployeeEditPage() {
                   <p className="text-sm text-destructive">{errors.position.message}</p>
                 )}
               </div>
-
+              {/* TODO [FE-05] JOVAN: Zameni ovaj Input sa Select komponentom
+                  Koristiti DEPARTMENTS niz (7 opcija, kopiraj iz EmployeeCreatePage.tsx)
+                  Primer: <Controller name="department" control={control} render={...} />
+                  Pogledaj kako je urađeno na CreatePage za Odeljenje */}
               <div className="space-y-2">
                 <Label>Odeljenje</Label>
                 <Controller
