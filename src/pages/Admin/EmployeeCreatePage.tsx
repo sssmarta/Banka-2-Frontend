@@ -1,18 +1,3 @@
-// =============================================================================
-// TODO [FE-21] ANTONIJE ILIĆ — Poboljšanje EmployeeCreatePage UI
-// =============================================================================
-// ZADATAK: Poboljšati izgled i UX ove stranice.
-//   1. Grupisanje polja u logične sekcije sa Card wrapper-ima
-//      (Lični podaci, Kontakt, Posao) — delimično već urađeno
-//   2. Sekcije sa jasnijim naslovima (CardHeader + CardTitle)
-//   3. Bolji raspored polja (grid layout: 2 kolone na desktopu, 1 na mobu)
-//   4. Poboljšani error prikaz (highlight polja sa greškom)
-//   5. Sačuvaj/Otkaži dugmad sticky na dnu
-// NAPOMENA: Koristi postojeće shadcn/ui komponente (Card, Separator, etc).
-// Koristi AI Agent Mode za pomoć!
-// + Napiši E2E test koji proverava validaciju na create formi.
-// =============================================================================
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
@@ -114,18 +99,15 @@ export default function EmployeeCreatePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Button
-        variant="ghost"
-        onClick={() => navigate('/admin/employees')}
-      >
+    <div className="space-y-6 pb-28">
+      <Button variant="ghost" onClick={() => navigate('/admin/employees')}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         Nazad na listu
       </Button>
 
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Kreiranje novog zaposlenog</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mt-1 text-sm text-muted-foreground">
           Nakon kreiranja, zaposleni će dobiti email sa linkom za aktivaciju naloga
           i postavljanje lozinke.
         </p>
@@ -143,73 +125,76 @@ export default function EmployeeCreatePage() {
             <CardTitle>Lični podaci</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="firstName">Ime *</Label>
-                <Input id="firstName" {...register('firstName')} />
+                <Input
+                  id="firstName"
+                  className={errors.firstName ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('firstName')}
+                />
                 {errors.firstName && (
-                  <p className="text-sm text-destructive">{errors.firstName.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.firstName.message}
+                  </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="lastName">Prezime *</Label>
-                <Input id="lastName" {...register('lastName')} />
-                {errors.lastName && (
-                  <p className="text-sm text-destructive">{errors.lastName.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input id="email" type="email" {...register('email')} />
-                {errors.email && (
-                  <p className="text-sm text-destructive">{errors.email.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="username">Username *</Label>
-                <Input id="username" placeholder="petar90" {...register('username')} />
-                {errors.username && (
-                  <p className="text-sm text-destructive">{errors.username.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Broj telefona *</Label>
                 <Input
-                  id="phoneNumber"
-                  placeholder="+381 60 1234567"
-                  {...register('phoneNumber')}
+                  id="lastName"
+                  className={errors.lastName ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('lastName')}
                 />
-                {errors.phoneNumber && (
-                  <p className="text-sm text-destructive">{errors.phoneNumber.message}</p>
+                {errors.lastName && (
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.lastName.message}
+                  </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="jmbg">JMBG *</Label>
                 <Input
                   id="jmbg"
                   placeholder="1234567890123"
                   maxLength={13}
+                  className={errors.jmbg ? 'border-destructive focus-visible:ring-destructive' : ''}
                   {...register('jmbg')}
                 />
                 {errors.jmbg && (
-                  <p className="text-sm text-destructive">{errors.jmbg.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.jmbg.message}
+                  </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Datum rođenja *</Label>
-                <Input id="dateOfBirth" type="date" {...register('dateOfBirth')} />
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  className={errors.dateOfBirth ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('dateOfBirth')}
+                />
                 {errors.dateOfBirth && (
-                  <p className="text-sm text-destructive">{errors.dateOfBirth.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.dateOfBirth.message}
+                  </p>
                 )}
               </div>
-              <div className="space-y-2">
+
+              <div className="space-y-2 md:col-span-2">
                 <Label>Pol *</Label>
                 <Controller
                   name="gender"
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
+                      <SelectTrigger
+                        className={errors.gender ? 'border-destructive focus:ring-destructive' : ''}
+                      >
                         <SelectValue placeholder="Izaberite pol" />
                       </SelectTrigger>
                       <SelectContent>
@@ -221,14 +206,9 @@ export default function EmployeeCreatePage() {
                   )}
                 />
                 {errors.gender && (
-                  <p className="text-sm text-destructive">{errors.gender.message}</p>
-                )}
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="address">Adresa *</Label>
-                <Input id="address" {...register('address')} />
-                {errors.address && (
-                  <p className="text-sm text-destructive">{errors.address.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.gender.message}
+                  </p>
                 )}
               </div>
             </div>
@@ -237,10 +217,78 @@ export default function EmployeeCreatePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Pozicija i odeljenje</CardTitle>
+            <CardTitle>Kontakt</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  className={errors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('email')}
+                />
+                {errors.email && (
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Broj telefona *</Label>
+                <Input
+                  id="phoneNumber"
+                  placeholder="+381 60 1234567"
+                  className={errors.phoneNumber ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('phoneNumber')}
+                />
+                {errors.phoneNumber && (
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.phoneNumber.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="address">Adresa *</Label>
+                <Input
+                  id="address"
+                  className={errors.address ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('address')}
+                />
+                {errors.address && (
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.address.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Posao</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  placeholder="petar90"
+                  className={errors.username ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('username')}
+                />
+                {errors.username && (
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.username.message}
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Pozicija *</Label>
                 <Controller
@@ -248,7 +296,10 @@ export default function EmployeeCreatePage() {
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
+                      <SelectTrigger
+                        data-cy="position-select"
+                        className={errors.position ? 'border-destructive focus:ring-destructive' : ''}
+                      >
                         <SelectValue placeholder="Izaberite poziciju" />
                       </SelectTrigger>
                       <SelectContent>
@@ -262,9 +313,12 @@ export default function EmployeeCreatePage() {
                   )}
                 />
                 {errors.position && (
-                  <p className="text-sm text-destructive">{errors.position.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.position.message}
+                  </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label>Odeljenje *</Label>
                 <Controller
@@ -272,7 +326,10 @@ export default function EmployeeCreatePage() {
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
+                      <SelectTrigger
+                        data-cy="department-select"
+                        className={errors.department ? 'border-destructive focus:ring-destructive' : ''}
+                      >
                         <SelectValue placeholder="Izaberite odeljenje" />
                       </SelectTrigger>
                       <SelectContent>
@@ -286,27 +343,37 @@ export default function EmployeeCreatePage() {
                   )}
                 />
                 {errors.department && (
-                  <p className="text-sm text-destructive">{errors.department.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.department.message}
+                  </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="role">Uloga *</Label>
-                <Input id="role" {...register('role')} />
+                <Input
+                  id="role"
+                  className={errors.role ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  {...register('role')}
+                />
                 {errors.role && (
-                  <p className="text-sm text-destructive">{errors.role.message}</p>
+                  <p className="text-sm font-medium text-destructive">
+                    {errors.role.message}
+                  </p>
                 )}
               </div>
-              <div className="flex items-center gap-3 pt-6">
+
+              <div className="flex items-center gap-3 rounded-md border p-4 md:col-span-2">
                 <Controller
                   name="isActive"
                   control={control}
                   render={({ field }) => (
                     <>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                      <Label className="cursor-pointer" onClick={() => field.onChange(!field.value)}>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Label
+                        className="cursor-pointer"
+                        onClick={() => field.onChange(!field.value)}
+                      >
                         {field.value ? 'Aktivan (default)' : 'Neaktivan'}
                       </Label>
                     </>
@@ -317,22 +384,29 @@ export default function EmployeeCreatePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate('/admin/employees')}
-          >
-            Otkaži
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="mr-2 h-4 w-4" />
-            )}
-            {isSubmitting ? 'Kreiranje...' : 'Kreiraj zaposlenog'}
-          </Button>
+        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/admin/employees')}
+            >
+              Otkaži
+            </Button>
+
+            <Button
+              type="submit"
+              data-cy="createBtn"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
+              {isSubmitting ? 'Kreiranje...' : 'Kreiraj zaposlenog'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
