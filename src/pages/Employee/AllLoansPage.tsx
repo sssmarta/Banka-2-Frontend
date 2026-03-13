@@ -8,11 +8,15 @@
 // - Spec: "Svi krediti" iz Celine 2 (employee section)
 
 import { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { creditService } from '@/services/creditService';
 import type { Loan, LoanStatus, LoanType } from '@/types/celina2';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function statusClass(status: LoanStatus): string {
   if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
@@ -20,6 +24,17 @@ function statusClass(status: LoanStatus): string {
   if (status === 'APPROVED') return 'bg-blue-100 text-blue-700';
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
 export default function AllLoansPage() {
@@ -41,10 +56,11 @@ export default function AllLoansPage() {
           loanType: loanType === 'ALL' ? undefined : loanType,
           status: status === 'ALL' ? undefined : status,
         });
-        setLoans(response.content);
+        setLoans(asArray<Loan>(response.content));
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
         toast.error('Neuspešno učitavanje kredita.');
+        setLoans([]);
       } finally {
         setLoading(false);
       }
@@ -108,7 +124,7 @@ export default function AllLoansPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje...</p>
-      ) : loans.length === 0 ? (
+      ) : asArray<Loan>(loans).length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-muted-foreground">Nema kredita za izabrane filtere.</CardContent>
         </Card>
@@ -128,13 +144,13 @@ export default function AllLoansPage() {
                 </tr>
               </thead>
               <tbody>
-                {loans.map((loan) => (
+                {asArray<Loan>(loans).map((loan) => (
                   <tr key={loan.id} className="border-b">
                     <td className="py-2">{loan.loanNumber || loan.id}</td>
                     <td className="py-2">{loan.loanType}</td>
-                    <td className="py-2">{loan.amount.toFixed(2)} {loan.currency}</td>
-                    <td className="py-2">{loan.monthlyPayment.toFixed(2)} {loan.currency}</td>
-                    <td className="py-2">{loan.remainingDebt.toFixed(2)} {loan.currency}</td>
+                    <td className="py-2">{formatAmount(loan.amount)} {loan.currency}</td>
+                    <td className="py-2">{formatAmount(loan.monthlyPayment)} {loan.currency}</td>
+                    <td className="py-2">{formatAmount(loan.remainingDebt)} {loan.currency}</td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(loan.status)}`}>
                         {loan.status}
@@ -177,10 +193,10 @@ export default function AllLoansPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>Tip: <span className="font-medium">{selectedLoan.loanType}</span></p>
-            <p>Nominalna kamata: <span className="font-medium">{selectedLoan.nominalRate.toFixed(2)}%</span></p>
-            <p>Efektivna kamata: <span className="font-medium">{selectedLoan.effectiveRate.toFixed(2)}%</span></p>
-            <p>Početak: <span className="font-medium">{new Date(selectedLoan.startDate).toLocaleDateString('sr-RS')}</span></p>
-            <p>Kraj: <span className="font-medium">{new Date(selectedLoan.endDate).toLocaleDateString('sr-RS')}</span></p>
+            <p>Nominalna kamata: <span className="font-medium">{formatAmount(selectedLoan.nominalRate)}%</span></p>
+            <p>Efektivna kamata: <span className="font-medium">{formatAmount(selectedLoan.effectiveRate)}%</span></p>
+            <p>Početak: <span className="font-medium">{formatDate(selectedLoan.startDate)}</span></p>
+            <p>Kraj: <span className="font-medium">{formatDate(selectedLoan.endDate)}</span></p>
             <div className="pt-2">
               <Button variant="outline" size="sm" onClick={() => setSelectedLoan(null)}>
                 Zatvori detalje

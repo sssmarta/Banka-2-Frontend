@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { creditService } from '@/services/creditService';
 import type { Account, Currency } from '@/types/celina2';
@@ -25,6 +25,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 export default function LoanApplicationPage() {
   const navigate = useNavigate();
@@ -63,14 +67,16 @@ export default function LoanApplicationPage() {
       try {
         const myAccounts = await accountService.getMyAccounts();
         if (!mounted) return;
-        setAccounts(myAccounts);
-        if (myAccounts.length > 0) {
-          setValue('accountNumber', myAccounts[0].accountNumber);
-          setValue('currency', myAccounts[0].currency);
+        const safeAccounts = asArray<Account>(myAccounts);
+        setAccounts(safeAccounts);
+        if (safeAccounts.length > 0) {
+          setValue('accountNumber', safeAccounts[0].accountNumber);
+          setValue('currency', safeAccounts[0].currency);
         }
       } catch {
         if (!mounted) return;
         toast.error('Neuspešno učitavanje računa.');
+        setAccounts([]);
       } finally {
         if (mounted) setIsLoadingAccounts(false);
       }
@@ -86,6 +92,7 @@ export default function LoanApplicationPage() {
   const selectedCurrency = watch('currency') as Currency;
   const amount = watch('amount') || 0;
   const repaymentPeriod = watch('repaymentPeriod') || 0;
+  const safeAccounts = useMemo(() => asArray<Account>(accounts), [accounts]);
 
   const repaymentOptions = useMemo(() => {
     return REPAYMENT_PERIODS[selectedLoanType] ?? [];
@@ -98,8 +105,8 @@ export default function LoanApplicationPage() {
   }, [repaymentOptions, repaymentPeriod, setValue]);
 
   const filteredAccounts = useMemo(
-    () => accounts.filter((account) => account.currency === selectedCurrency),
-    [accounts, selectedCurrency]
+    () => safeAccounts.filter((account) => account.currency === selectedCurrency),
+    [safeAccounts, selectedCurrency]
   );
 
   useEffect(() => {

@@ -8,13 +8,17 @@
 // - Spec: "Zahtevi za kredit" iz Celine 2 (employee section)
 
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { creditService } from '@/services/creditService';
 import type { LoanRequest, LoanStatus } from '@/types/celina2';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 type StatusFilter = LoanStatus | 'ALL';
 
@@ -24,6 +28,17 @@ function statusBadgeClass(status: LoanStatus): string {
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   if (status === 'ACTIVE') return 'bg-blue-100 text-blue-700';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
 export default function LoanRequestsPage() {
@@ -41,9 +56,10 @@ export default function LoanRequestsPage() {
       const response = await creditService.getRequests(
         statusFilter === 'ALL' ? undefined : { status: statusFilter }
       );
-      setLoanRequests(response.content);
+      setLoanRequests(asArray<LoanRequest>(response.content));
     } catch {
       toast.error('Neuspešno učitavanje zahteva za kredit.');
+      setLoanRequests([]);
     } finally {
       setLoading(false);
     }
@@ -54,10 +70,11 @@ export default function LoanRequestsPage() {
   }, [statusFilter]);
 
   const counts = useMemo(() => {
-    const all = loanRequests.length;
-    const pending = loanRequests.filter((r) => r.status === 'PENDING').length;
-    const approved = loanRequests.filter((r) => r.status === 'APPROVED').length;
-    const rejected = loanRequests.filter((r) => r.status === 'REJECTED').length;
+    const safeRequests = asArray<LoanRequest>(loanRequests);
+    const all = safeRequests.length;
+    const pending = safeRequests.filter((r) => r.status === 'PENDING').length;
+    const approved = safeRequests.filter((r) => r.status === 'APPROVED').length;
+    const rejected = safeRequests.filter((r) => r.status === 'REJECTED').length;
     return { all, pending, approved, rejected };
   }, [loanRequests]);
 
@@ -120,7 +137,7 @@ export default function LoanRequestsPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje zahteva...</p>
-      ) : loanRequests.length === 0 ? (
+      ) : asArray<LoanRequest>(loanRequests).length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-muted-foreground">Nema zahteva za izabrani filter.</CardContent>
         </Card>
@@ -141,7 +158,7 @@ export default function LoanRequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {loanRequests.map((request) => {
+                {asArray<LoanRequest>(loanRequests).map((request) => {
                   const isPending = request.status === 'PENDING';
                   const isExpanded = expandedId === request.id;
                   const isRejecting = rejectingLoanId === request.id;
@@ -152,9 +169,9 @@ export default function LoanRequestsPage() {
                         <td className="py-2">{request.clientName || request.clientEmail || '-'}</td>
                         <td className="py-2">{request.loanType}</td>
                         <td className="py-2">{request.interestRateType}</td>
-                        <td className="py-2">{request.amount.toFixed(2)} {request.currency}</td>
+                        <td className="py-2">{formatAmount(request.amount)} {request.currency}</td>
                         <td className="py-2">{request.repaymentPeriod} mes.</td>
-                        <td className="py-2">{new Date(request.createdAt).toLocaleDateString('sr-RS')}</td>
+                        <td className="py-2">{formatDate(request.createdAt)}</td>
                         <td className="py-2">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(request.status)}`}>
                             {request.status}

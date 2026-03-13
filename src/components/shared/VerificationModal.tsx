@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { transactionService } from '@/services/transactionService';
 import { verificationSchema, type VerificationFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';

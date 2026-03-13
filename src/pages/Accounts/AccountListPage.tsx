@@ -10,11 +10,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction } from '@/types/celina2';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function statusClass(status: string): string {
   if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
@@ -25,6 +29,17 @@ function statusClass(status: string): string {
 function formatAccountNumber(accountNumber: string): string {
   if (accountNumber.length !== 18) return accountNumber;
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 7)}-${accountNumber.slice(7, 16)}-${accountNumber.slice(16)}`;
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
 }
 
 export default function AccountListPage() {
@@ -41,10 +56,14 @@ export default function AccountListPage() {
       setLoading(true);
       try {
         const data = await accountService.getMyAccounts();
-        setAccounts(data);
-        if (data.length > 0) setSelectedAccount(data[0]);
+        const safeAccounts = asArray<Account>(data);
+        setAccounts(safeAccounts);
+        if (safeAccounts.length > 0) setSelectedAccount(safeAccounts[0]);
+        else setSelectedAccount(null);
       } catch {
         toast.error('Neuspešno učitavanje računa.');
+        setAccounts([]);
+        setSelectedAccount(null);
       } finally {
         setLoading(false);
       }
@@ -67,9 +86,11 @@ export default function AccountListPage() {
           page: 0,
           limit: 5,
         });
-        setTransactions(response.content);
+        const txSource = (response as { content?: unknown } | undefined)?.content ?? response;
+        setTransactions(asArray<Transaction>(txSource));
       } catch {
         toast.error('Neuspešno učitavanje transakcija.');
+        setTransactions([]);
       } finally {
         setLoadingTransactions(false);
       }
@@ -79,8 +100,9 @@ export default function AccountListPage() {
   }, [selectedAccount]);
 
   const filteredAccounts = useMemo(() => {
-    if (selectedType === 'ALL') return accounts;
-    return accounts.filter((account) => account.accountType === selectedType);
+    const safeAccounts = asArray<Account>(accounts);
+    if (selectedType === 'ALL') return safeAccounts;
+    return safeAccounts.filter((account) => account.accountType === selectedType);
   }, [accounts, selectedType]);
 
   return (
@@ -129,7 +151,7 @@ export default function AccountListPage() {
               <CardContent className="space-y-2 text-sm">
                 <p>{formatAccountNumber(account.accountNumber)}</p>
                 <p>Tip: <span className="font-medium">{account.accountType}</span></p>
-                <p>Stanje: <span className="font-medium">{account.balance.toFixed(2)} {account.currency}</span></p>
+                <p>Stanje: <span className="font-medium">{formatAmount(account.balance)} {account.currency}</span></p>
                 <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(account.status)}`}>
                   {account.status}
                 </span>
@@ -164,9 +186,9 @@ export default function AccountListPage() {
                 <tbody>
                   {transactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b">
-                      <td className="py-2">{new Date(transaction.createdAt).toLocaleString('sr-RS')}</td>
+                      <td className="py-2">{formatDateTime(transaction.createdAt)}</td>
                       <td className="py-2">{transaction.description || transaction.paymentPurpose}</td>
-                      <td className="py-2">{transaction.amount.toFixed(2)} {transaction.currency}</td>
+                      <td className="py-2">{formatAmount(transaction.amount)} {transaction.currency}</td>
                       <td className="py-2">{transaction.status}</td>
                     </tr>
                   ))}

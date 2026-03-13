@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
@@ -23,6 +23,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
 
 export default function NewPaymentPage() {
   const navigate = useNavigate();
@@ -71,15 +80,20 @@ export default function NewPaymentPage() {
         ]);
 
         if (!mounted) return;
-        setAccounts(myAccounts);
-        setRecipients(savedRecipients);
+        const safeAccounts = asArray<Account>(myAccounts);
+        const safeRecipients = asArray<PaymentRecipient>(savedRecipients);
 
-        if (!preselectedAccount && myAccounts.length > 0) {
-          setValue('fromAccountNumber', myAccounts[0].accountNumber);
+        setAccounts(safeAccounts);
+        setRecipients(safeRecipients);
+
+        if (!preselectedAccount && safeAccounts.length > 0) {
+          setValue('fromAccountNumber', safeAccounts[0].accountNumber);
         }
       } catch {
         if (!mounted) return;
         toast.error('Neuspešno učitavanje računa ili primalaca.');
+        setAccounts([]);
+        setRecipients([]);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -95,7 +109,7 @@ export default function NewPaymentPage() {
 
   useEffect(() => {
     if (!selectedRecipientAccount) return;
-    const selectedRecipient = recipients.find((r) => r.accountNumber === selectedRecipientAccount);
+    const selectedRecipient = asArray<PaymentRecipient>(recipients).find((r) => r.accountNumber === selectedRecipientAccount);
     if (selectedRecipient) {
       setValue('recipientName', selectedRecipient.name, { shouldValidate: true });
     }
@@ -103,7 +117,7 @@ export default function NewPaymentPage() {
 
   const accountLookup = useMemo(() => {
     const map = new Map<string, Account>();
-    accounts.forEach((account) => map.set(account.accountNumber, account));
+    asArray<Account>(accounts).forEach((account) => map.set(account.accountNumber, account));
     return map;
   }, [accounts]);
 
@@ -158,9 +172,9 @@ export default function NewPaymentPage() {
                   {...register('fromAccountNumber')}
                 >
                   <option value="">Izaberite račun</option>
-                  {accounts.map((account) => (
+                  {asArray<Account>(accounts).map((account) => (
                     <option key={account.id} value={account.accountNumber}>
-                      {account.name || account.accountType} | {account.accountNumber} | {account.availableBalance.toFixed(2)}{' '}
+                      {account.name || account.accountType} | {account.accountNumber} | {formatAmount(account.availableBalance)}{' '}
                       {account.currency}
                     </option>
                   ))}
@@ -183,7 +197,7 @@ export default function NewPaymentPage() {
                   }}
                 >
                   <option value="">Bez šablona</option>
-                  {recipients.map((recipient) => (
+                  {asArray<PaymentRecipient>(recipients).map((recipient) => (
                     <option key={recipient.id} value={recipient.accountNumber}>
                       {recipient.name} | {recipient.accountNumber}
                     </option>

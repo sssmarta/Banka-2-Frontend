@@ -8,12 +8,16 @@
 // - Spec: "Istorija transfera" iz Celine 2
 
 import { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, Transfer } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function statusClass(status: string): string {
   if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
@@ -21,6 +25,17 @@ function statusClass(status: string): string {
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   if (status === 'CANCELLED') return 'bg-muted text-muted-foreground';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
 }
 
 export default function TransferHistoryPage() {
@@ -37,9 +52,10 @@ export default function TransferHistoryPage() {
     const loadAccounts = async () => {
       try {
         const data = await accountService.getMyAccounts();
-        setAccounts(data);
+        setAccounts(asArray<Account>(data));
       } catch {
         toast.error('Neuspešno učitavanje računa.');
+        setAccounts([]);
       }
     };
 
@@ -57,10 +73,11 @@ export default function TransferHistoryPage() {
           page,
           limit: 10,
         });
-        setTransfers(response.content);
+        setTransfers(asArray<Transfer>(response.content));
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
         toast.error('Neuspešno učitavanje istorije transfera.');
+        setTransfers([]);
       } finally {
         setLoading(false);
       }
@@ -92,7 +109,7 @@ export default function TransferHistoryPage() {
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Svi računi</option>
-              {accounts.map((account) => (
+              {asArray<Account>(accounts).map((account) => (
                 <option key={account.id} value={account.accountNumber}>
                   {account.accountNumber}
                 </option>
@@ -126,7 +143,7 @@ export default function TransferHistoryPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje transfera...</p>
-      ) : transfers.length === 0 ? (
+      ) : asArray<Transfer>(transfers).length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-muted-foreground">Nema transfera za izabrane filtere.</CardContent>
         </Card>
@@ -148,16 +165,16 @@ export default function TransferHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {transfers.map((transfer) => (
+                {asArray<Transfer>(transfers).map((transfer) => (
                   <tr key={transfer.id} className="border-b">
-                    <td className="py-2">{new Date(transfer.createdAt).toLocaleString('sr-RS')}</td>
+                    <td className="py-2">{formatDateTime(transfer.createdAt)}</td>
                     <td className="py-2">{transfer.fromAccountNumber}</td>
                     <td className="py-2">{transfer.toAccountNumber}</td>
-                    <td className="py-2">{transfer.amount.toFixed(2)}</td>
+                    <td className="py-2">{formatAmount(transfer.amount)}</td>
                     <td className="py-2">{transfer.fromCurrency}</td>
                     <td className="py-2">{transfer.toCurrency}</td>
-                    <td className="py-2">{transfer.exchangeRate?.toFixed(4) ?? '-'}</td>
-                    <td className="py-2">{transfer.commission?.toFixed(2) ?? '-'}</td>
+                    <td className="py-2">{transfer.exchangeRate == null ? '-' : formatAmount(transfer.exchangeRate, 4)}</td>
+                    <td className="py-2">{transfer.commission == null ? '-' : formatAmount(transfer.commission)}</td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(transfer.status)}`}>
                         {transfer.status}

@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import type { PaymentRecipient } from '@/types/celina2';
 import {
@@ -24,6 +24,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 export default function RecipientsPage() {
   const [recipients, setRecipients] = useState<PaymentRecipient[]>([]);
@@ -47,9 +51,10 @@ export default function RecipientsPage() {
     setLoading(true);
     try {
       const data = await paymentRecipientService.getAll();
-      setRecipients(data);
+      setRecipients(asArray<PaymentRecipient>(data));
     } catch {
       toast.error('Neuspešno učitavanje primalaca.');
+      setRecipients([]);
     } finally {
       setLoading(false);
     }
@@ -61,8 +66,9 @@ export default function RecipientsPage() {
 
   const filteredRecipients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return recipients;
-    return recipients.filter((recipient) => recipient.name.toLowerCase().includes(term));
+    const safeRecipients = asArray<PaymentRecipient>(recipients);
+    if (!term) return safeRecipients;
+    return safeRecipients.filter((recipient) => recipient.name.toLowerCase().includes(term));
   }, [recipients, searchTerm]);
 
   const onCreate = async (data: CreateRecipientFormData) => {

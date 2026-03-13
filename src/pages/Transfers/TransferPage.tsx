@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import { transactionService } from '@/services/transactionService';
@@ -26,6 +26,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
 
 export default function TransferPage() {
   const navigate = useNavigate();
@@ -60,13 +69,15 @@ export default function TransferPage() {
       try {
         const data = await accountService.getMyAccounts();
         if (!mounted) return;
-        setAccounts(data);
-        if (!preselectedFrom && data.length > 0) {
-          setValue('fromAccountNumber', data[0].accountNumber);
+        const safeAccounts = asArray<Account>(data);
+        setAccounts(safeAccounts);
+        if (!preselectedFrom && safeAccounts.length > 0) {
+          setValue('fromAccountNumber', safeAccounts[0].accountNumber);
         }
       } catch {
         if (!mounted) return;
         toast.error('Neuspešno učitavanje računa.');
+        setAccounts([]);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -82,18 +93,20 @@ export default function TransferPage() {
   const toAccount = watch('toAccountNumber');
   const amount = watch('amount') || 0;
 
+  const safeAccounts = useMemo(() => asArray<Account>(accounts), [accounts]);
+
   const fromAccountData = useMemo(
-    () => accounts.find((account) => account.accountNumber === fromAccount),
-    [accounts, fromAccount]
+    () => safeAccounts.find((account) => account.accountNumber === fromAccount),
+    [safeAccounts, fromAccount]
   );
   const toAccountData = useMemo(
-    () => accounts.find((account) => account.accountNumber === toAccount),
-    [accounts, toAccount]
+    () => safeAccounts.find((account) => account.accountNumber === toAccount),
+    [safeAccounts, toAccount]
   );
 
   const toAccountOptions = useMemo(
-    () => accounts.filter((account) => account.accountNumber !== fromAccount),
-    [accounts, fromAccount]
+    () => safeAccounts.filter((account) => account.accountNumber !== fromAccount),
+    [safeAccounts, fromAccount]
   );
 
   useEffect(() => {
@@ -159,9 +172,9 @@ export default function TransferPage() {
                   {...register('fromAccountNumber')}
                 >
                   <option value="">Izaberite račun</option>
-                  {accounts.map((account) => (
+                  {safeAccounts.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
-                      {account.accountNumber} | {account.availableBalance.toFixed(2)} {account.currency}
+                      {account.accountNumber} | {formatAmount(account.availableBalance)} {account.currency}
                     </option>
                   ))}
                 </select>
@@ -179,7 +192,7 @@ export default function TransferPage() {
                   <option value="">Izaberite račun</option>
                   {toAccountOptions.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
-                      {account.accountNumber} | {account.availableBalance.toFixed(2)} {account.currency}
+                      {account.accountNumber} | {formatAmount(account.availableBalance)} {account.currency}
                     </option>
                   ))}
                 </select>
@@ -195,10 +208,10 @@ export default function TransferPage() {
               {exchangePreview && fromAccountData && toAccountData && (
                 <div className="rounded-md border p-3 text-sm space-y-1">
                   <p>
-                    Kurs: 1 {fromAccountData.currency} = {exchangePreview.rate.toFixed(4)} {toAccountData.currency}
+                    Kurs: 1 {fromAccountData.currency} = {formatAmount(exchangePreview.rate, 4)} {toAccountData.currency}
                   </p>
                   <p>
-                    Konvertovani iznos: {exchangePreview.convertedAmount.toFixed(2)} {toAccountData.currency}
+                    Konvertovani iznos: {formatAmount(exchangePreview.convertedAmount)} {toAccountData.currency}
                   </p>
                 </div>
               )}

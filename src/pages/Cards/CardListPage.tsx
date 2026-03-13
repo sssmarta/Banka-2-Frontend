@@ -16,11 +16,15 @@
 // - Luhn validacija za prikaz (16 cifara)
 
 import { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { cardService } from '@/services/cardService';
 import type { Card } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function maskCardNumber(number: string): string {
   const last4 = number.slice(-4);
@@ -34,6 +38,17 @@ function statusClass(status: string): string {
   return 'bg-muted text-muted-foreground';
 }
 
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
+}
+
 export default function CardListPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,9 +58,10 @@ export default function CardListPage() {
     setLoading(true);
     try {
       const data = await cardService.getMyCards();
-      setCards(data);
+      setCards(asArray<Card>(data));
     } catch {
       toast.error('Neuspešno učitavanje kartica.');
+      setCards([]);
     } finally {
       setLoading(false);
     }
@@ -100,10 +116,10 @@ export default function CardListPage() {
       <div className="grid gap-6 md:grid-cols-2">
         {loading ? (
           <p className="text-muted-foreground col-span-full">Učitavanje kartica...</p>
-        ) : cards.length === 0 ? (
+        ) : asArray<Card>(cards).length === 0 ? (
           <p className="text-muted-foreground col-span-full">Nemate aktivnih kartica.</p>
         ) : (
-          cards.map((card) => (
+          asArray<Card>(cards).map((card) => (
             <UICard key={card.id} className={`${card.cardType === 'VISA' ? 'border-blue-400' : card.cardType === 'MASTERCARD' ? 'border-red-400' : ''}`}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center justify-between">
@@ -114,9 +130,9 @@ export default function CardListPage() {
               <CardContent className="space-y-2 text-sm">
                 <p className="font-mono text-lg tracking-widest">{maskCardNumber(card.cardNumber)}</p>
                 <p>Vlasnik: <span className="font-medium">{card.holderName}</span></p>
-                <p>Istek: <span className="font-medium">{new Date(card.expirationDate).toLocaleDateString('sr-RS')}</span></p>
+                <p>Istek: <span className="font-medium">{formatDate(card.expirationDate)}</span></p>
                 <p>Račun: <span className="font-medium">{card.accountNumber}</span></p>
-                <p>Limit: <span className="font-medium">{card.limit.toFixed(2)}</span></p>
+                <p>Limit: <span className="font-medium">{formatAmount(card.limit)}</span></p>
 
                 <div className="flex flex-wrap gap-2 pt-2">
                   {card.status === 'ACTIVE' && (

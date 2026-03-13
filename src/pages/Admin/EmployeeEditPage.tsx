@@ -7,7 +7,7 @@ import { editEmployeeSchema, type EditEmployeeFormData } from '../../utils/valid
 import { employeeService } from '../../services/employeeService';
 import type { Employee } from '../../types';
 import { Permission } from '../../types';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

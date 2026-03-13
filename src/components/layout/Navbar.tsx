@@ -31,61 +31,61 @@ const navItems: NavItem[] = [
   {
     label: 'Početna',
     path: '/home',
-    icon: <Home className="mr-1.5 h-4 w-4" />,
+    icon: <Home className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Računi',
     path: '/accounts',
-    icon: <Wallet className="mr-1.5 h-4 w-4" />,
+    icon: <Wallet className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Plaćanja',
     path: '/payments/new',
-    icon: <Receipt className="mr-1.5 h-4 w-4" />,
+    icon: <Receipt className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Prenosi',
     path: '/transfers',
-    icon: <ArrowLeftRight className="mr-1.5 h-4 w-4" />,
+    icon: <ArrowLeftRight className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Menjačnica',
     path: '/exchange',
-    icon: <RefreshCw className="mr-1.5 h-4 w-4" />,
+    icon: <RefreshCw className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Kartice',
     path: '/cards',
-    icon: <CreditCard className="mr-1.5 h-4 w-4" />,
+    icon: <CreditCard className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Krediti',
     path: '/loans',
-    icon: <FileText className="mr-1.5 h-4 w-4" />,
+    icon: <FileText className="mr-2 h-4 w-4" />,
   },
   // Employee/Admin stavke
   {
     label: 'Zaposleni',
     path: '/admin/employees',
-    icon: <Users className="mr-1.5 h-4 w-4" />,
+    icon: <Users className="mr-2 h-4 w-4" />,
     adminOnly: true,
   },
   {
     label: 'Portal računa',
     path: '/employee/accounts',
-    icon: <Building2 className="mr-1.5 h-4 w-4" />,
+    icon: <Building2 className="mr-2 h-4 w-4" />,
     adminOnly: true,
   },
   {
     label: 'Portal klijenata',
     path: '/employee/clients',
-    icon: <BookUser className="mr-1.5 h-4 w-4" />,
+    icon: <BookUser className="mr-2 h-4 w-4" />,
     adminOnly: true,
   },
   {
     label: 'Zahtevi',
     path: '/employee/loan-requests',
-    icon: <ShieldCheck className="mr-1.5 h-4 w-4" />,
+    icon: <ShieldCheck className="mr-2 h-4 w-4" />,
     adminOnly: true,
   },
 ];
@@ -113,23 +113,23 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-primary text-primary-foreground">
-      <div className="container flex h-14 items-center">
+      <div className="flex h-14 w-full items-center gap-3 px-4 lg:px-6">
         <div
-          className="flex cursor-pointer items-center gap-2 font-bold mr-6"
+          className="mr-2 flex shrink-0 cursor-pointer items-center gap-2 font-bold"
           onClick={() => navigate('/home')}
         >
           <Landmark className="h-5 w-5" />
           <span className="text-lg">Banka 2025</span>
         </div>
 
-        <nav className="flex items-center gap-1 flex-1">
+        <nav className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap">
           {visibleItems.map((item) => (
             <Button
               key={item.path}
               variant="ghost"
               size="sm"
               className={cn(
-                'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10',
+                'shrink-0 px-3 text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground',
                 isActive(item.path) &&
                   'bg-primary-foreground/15 text-primary-foreground'
               )}
@@ -144,7 +144,7 @@ export default function Navbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hover:bg-primary-foreground/10"
+          className="shrink-0 hover:bg-primary-foreground/10"
           onClick={() => {
             const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
             setTheme(next);
@@ -161,7 +161,7 @@ export default function Navbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="hover:bg-primary-foreground/10"
+              className="shrink-0 hover:bg-primary-foreground/10"
             >
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground text-xs">

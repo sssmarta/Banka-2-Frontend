@@ -13,12 +13,16 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction, TransactionStatus } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function statusClass(status: TransactionStatus): string {
   if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
@@ -26,6 +30,23 @@ function statusClass(status: TransactionStatus): string {
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   if (status === 'CANCELLED') return 'bg-muted text-muted-foreground';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
+}
+
+function getTimestamp(value: string | null | undefined): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 export default function PaymentHistoryPage() {
@@ -50,9 +71,10 @@ export default function PaymentHistoryPage() {
     const loadAccounts = async () => {
       try {
         const data = await accountService.getMyAccounts();
-        setAccounts(data);
+        setAccounts(asArray<Account>(data));
       } catch {
         toast.error('Neuspešno učitavanje računa.');
+        setAccounts([]);
       }
     };
 
@@ -74,13 +96,12 @@ export default function PaymentHistoryPage() {
           limit,
         });
 
-        const sorted = [...response.content].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        const sorted = [...asArray<Transaction>(response.content)].sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
         setTransactions(sorted);
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
         toast.error('Neuspešno učitavanje plaćanja.');
+        setTransactions([]);
       } finally {
         setLoading(false);
       }
@@ -113,10 +134,10 @@ export default function PaymentHistoryPage() {
         <head><title>Potvrda transakcije #${tx.id}</title></head>
         <body>
           <h2>Potvrda transakcije #${tx.id}</h2>
-          <p>Datum: ${new Date(tx.createdAt).toLocaleString('sr-RS')}</p>
+          <p>Datum: ${formatDateTime(tx.createdAt)}</p>
           <p>Sa računa: ${tx.fromAccountNumber}</p>
           <p>Na račun: ${tx.toAccountNumber}</p>
-          <p>Iznos: ${tx.amount.toFixed(2)} ${tx.currency}</p>
+          <p>Iznos: ${formatAmount(tx.amount)} ${tx.currency}</p>
           <p>Status: ${tx.status}</p>
           <p>Svrha: ${tx.paymentPurpose}</p>
           <p>Šifra plaćanja: ${tx.paymentCode}</p>
@@ -147,7 +168,7 @@ export default function PaymentHistoryPage() {
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Svi</option>
-              {accounts.map((account) => (
+              {asArray<Account>(accounts).map((account) => (
                 <option key={account.id} value={account.accountNumber}>{account.accountNumber}</option>
               ))}
             </select>
@@ -213,7 +234,7 @@ export default function PaymentHistoryPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje transakcija...</p>
-      ) : transactions.length === 0 ? (
+      ) : asArray<Transaction>(transactions).length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-muted-foreground">Nema transakcija za izabrane filtere.</CardContent>
         </Card>
@@ -233,13 +254,13 @@ export default function PaymentHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => (
+                {asArray<Transaction>(transactions).map((tx) => (
                   <>
                     <tr key={tx.id} className="border-b">
-                      <td className="py-2">{new Date(tx.createdAt).toLocaleString('sr-RS')}</td>
+                      <td className="py-2">{formatDateTime(tx.createdAt)}</td>
                       <td className="py-2">{tx.fromAccountNumber}</td>
                       <td className="py-2">{tx.toAccountNumber}</td>
-                      <td className="py-2">{tx.amount.toFixed(2)} {tx.currency}</td>
+                      <td className="py-2">{formatAmount(tx.amount)} {tx.currency}</td>
                       <td className="py-2">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(tx.status)}`}>{tx.status}</span>
                       </td>

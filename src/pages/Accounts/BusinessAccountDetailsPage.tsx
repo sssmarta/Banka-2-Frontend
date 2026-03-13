@@ -11,10 +11,21 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, BusinessAccount, Transaction } from '@/types/celina2';
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
+}
 
 export default function BusinessAccountDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,13 +93,13 @@ export default function BusinessAccountDetailsPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 text-sm border rounded-md p-4 bg-card">
             <p>
-              Stanje: <span className="font-medium">{account.balance.toFixed(2)} {account.currency}</span>
+              Stanje: <span className="font-medium">{formatAmount(account.balance)} {account.currency}</span>
             </p>
             <p>
-              Raspoloživo: <span className="font-medium">{account.availableBalance.toFixed(2)} {account.currency}</span>
+              Raspoloživo: <span className="font-medium">{formatAmount(account.availableBalance)} {account.currency}</span>
             </p>
             <p>
-              Rezervisano: <span className="font-medium">{account.reservedBalance.toFixed(2)} {account.currency}</span>
+              Rezervisano: <span className="font-medium">{formatAmount(account.reservedBalance)} {account.currency}</span>
             </p>
             <p>
               Podvrsta: <span className="font-medium">{account.accountSubtype || '-'}</span>
@@ -140,9 +151,9 @@ export default function BusinessAccountDetailsPage() {
               <tbody>
                 {transactions.map((tx) => (
                   <tr key={tx.id} className="border-b">
-                    <td className="py-2">{new Date(tx.createdAt).toLocaleString('sr-RS')}</td>
+                    <td className="py-2">{formatDateTime(tx.createdAt)}</td>
                     <td className="py-2">{tx.description || tx.paymentPurpose}</td>
-                    <td className="py-2">{tx.amount.toFixed(2)} {tx.currency}</td>
+                    <td className="py-2">{formatAmount(tx.amount)} {tx.currency}</td>
                     <td className="py-2">{tx.status}</td>
                   </tr>
                 ))}

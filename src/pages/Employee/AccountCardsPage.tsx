@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { cardService } from '@/services/cardService';
 import type { Account, CardType, Card as BankCard } from '@/types/celina2';
@@ -21,6 +21,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 function maskCardNumber(number: string): string {
   return `**** **** **** ${number.slice(-4)}`;
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
 export default function AccountCardsPage() {
@@ -147,8 +158,8 @@ export default function AccountCardsPage() {
                 <CardContent className="space-y-2 text-sm">
                   <p className="font-mono">{maskCardNumber(card.cardNumber)}</p>
                   <p>Status: <span className="font-medium">{card.status}</span></p>
-                  <p>Limit: <span className="font-medium">{card.limit.toFixed(2)}</span></p>
-                  <p>Istek: <span className="font-medium">{new Date(card.expirationDate).toLocaleDateString('sr-RS')}</span></p>
+                  <p>Limit: <span className="font-medium">{formatAmount(card.limit)}</span></p>
+                  <p>Istek: <span className="font-medium">{formatDate(card.expirationDate)}</span></p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     {card.status === 'ACTIVE' && (
                       <Button variant="outline" size="sm" onClick={() => runAction(card.id, 'block')} disabled={processingId === card.id}>

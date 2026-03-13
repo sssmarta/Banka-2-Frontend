@@ -9,11 +9,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { creditService } from '@/services/creditService';
 import type { Installment, Loan } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 function statusStyles(status: Loan['status']): string {
   if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
@@ -21,6 +25,17 @@ function statusStyles(status: Loan['status']): string {
   if (status === 'APPROVED') return 'bg-blue-100 text-blue-700';
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
 export default function LoanListPage() {
@@ -36,9 +51,10 @@ export default function LoanListPage() {
       setLoading(true);
       try {
         const data = await creditService.getMyLoans();
-        setLoans(data);
+        setLoans(asArray<Loan>(data));
       } catch {
         toast.error('Neuspešno učitavanje kredita.');
+        setLoans([]);
       } finally {
         setLoading(false);
       }
@@ -57,9 +73,10 @@ export default function LoanListPage() {
       setLoadingInstallments(true);
       try {
         const data = await creditService.getInstallments(selectedLoan.id);
-        setInstallments(data);
+        setInstallments(asArray<Installment>(data));
       } catch {
         toast.error('Neuspešno učitavanje rata.');
+        setInstallments([]);
       } finally {
         setLoadingInstallments(false);
       }
@@ -69,7 +86,7 @@ export default function LoanListPage() {
   }, [selectedLoan]);
 
   const paidInstallments = useMemo(
-    () => installments.filter((installment) => installment.paid).length,
+    () => asArray<Installment>(installments).filter((installment) => installment.paid).length,
     [installments]
   );
 
@@ -88,13 +105,13 @@ export default function LoanListPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje kredita...</p>
-      ) : loans.length === 0 ? (
+      ) : asArray<Loan>(loans).length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-muted-foreground">Trenutno nema kredita.</CardContent>
         </Card>
       ) : (
         <section className="grid gap-4">
-          {loans.map((loan) => {
+          {asArray<Loan>(loans).map((loan) => {
             const isSelected = selectedLoan?.id === loan.id;
             return (
               <Card key={loan.id}>
@@ -109,13 +126,13 @@ export default function LoanListPage() {
                 <CardContent className="space-y-3">
                   <div className="grid gap-2 md:grid-cols-2 text-sm">
                     <p>
-                      Iznos: <span className="font-medium">{loan.amount.toFixed(2)} {loan.currency}</span>
+                      Iznos: <span className="font-medium">{formatAmount(loan.amount)} {loan.currency}</span>
                     </p>
                     <p>
-                      Mesečna rata: <span className="font-medium">{loan.monthlyPayment.toFixed(2)} {loan.currency}</span>
+                      Mesečna rata: <span className="font-medium">{formatAmount(loan.monthlyPayment)} {loan.currency}</span>
                     </p>
                     <p>
-                      Preostali dug: <span className="font-medium">{loan.remainingDebt.toFixed(2)} {loan.currency}</span>
+                      Preostali dug: <span className="font-medium">{formatAmount(loan.remainingDebt)} {loan.currency}</span>
                     </p>
                     <p>
                       Period: <span className="font-medium">{loan.repaymentPeriod} meseci</span>
@@ -143,17 +160,17 @@ export default function LoanListPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2 md:grid-cols-2 text-sm">
-              <p>Nominalna kamatna stopa: <span className="font-medium">{selectedLoan.nominalRate.toFixed(2)}%</span></p>
-              <p>Efektivna kamatna stopa: <span className="font-medium">{selectedLoan.effectiveRate.toFixed(2)}%</span></p>
-              <p>Početak: <span className="font-medium">{new Date(selectedLoan.startDate).toLocaleDateString('sr-RS')}</span></p>
-              <p>Kraj: <span className="font-medium">{new Date(selectedLoan.endDate).toLocaleDateString('sr-RS')}</span></p>
+              <p>Nominalna kamatna stopa: <span className="font-medium">{formatAmount(selectedLoan.nominalRate)}%</span></p>
+              <p>Efektivna kamatna stopa: <span className="font-medium">{formatAmount(selectedLoan.effectiveRate)}%</span></p>
+              <p>Početak: <span className="font-medium">{formatDate(selectedLoan.startDate)}</span></p>
+              <p>Kraj: <span className="font-medium">{formatDate(selectedLoan.endDate)}</span></p>
             </div>
 
             <progress className="w-full h-2" max={100} value={progress} />
 
             {loadingInstallments ? (
               <p className="text-muted-foreground">Učitavanje rata...</p>
-            ) : installments.length === 0 ? (
+            ) : asArray<Installment>(installments).length === 0 ? (
               <p className="text-muted-foreground">Nema dostupnih rata.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -167,11 +184,11 @@ export default function LoanListPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {installments.map((installment, index) => (
+                    {asArray<Installment>(installments).map((installment, index) => (
                       <tr key={installment.id} className="border-b last:border-0">
                         <td className="py-2">{index + 1}</td>
-                        <td className="py-2">{installment.amount.toFixed(2)} {installment.currency}</td>
-                        <td className="py-2">{new Date(installment.expectedDueDate).toLocaleDateString('sr-RS')}</td>
+                        <td className="py-2">{formatAmount(installment.amount)} {installment.currency}</td>
+                        <td className="py-2">{formatDate(installment.expectedDueDate)}</td>
                         <td className="py-2">{installment.paid ? 'Da' : 'Ne'}</td>
                       </tr>
                     ))}
@@ -181,7 +198,7 @@ export default function LoanListPage() {
             )}
 
             <p className="text-sm text-muted-foreground">
-              Plaćeno rata: {paidInstallments} / {installments.length}
+              Plaćeno rata: {paidInstallments} / {asArray<Installment>(installments).length}
             </p>
           </CardContent>
         </Card>

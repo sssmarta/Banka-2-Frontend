@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import type { Account, ExchangeRate } from '@/types/celina2';
@@ -20,6 +20,21 @@ import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
+}
 
 export default function ExchangePage() {
   const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -51,13 +66,17 @@ export default function ExchangePage() {
           currencyService.getExchangeRates(),
           accountService.getMyAccounts(),
         ]);
-        setRates(exchangeRates);
-        setAccounts(myAccounts);
-        if (myAccounts.length > 0) {
-          setValue('accountNumber', myAccounts[0].accountNumber);
+        const safeRates = asArray<ExchangeRate>(exchangeRates);
+        const safeAccounts = asArray<Account>(myAccounts);
+        setRates(safeRates);
+        setAccounts(safeAccounts);
+        if (safeAccounts.length > 0) {
+          setValue('accountNumber', safeAccounts[0].accountNumber);
         }
       } catch {
         toast.error('Neuspešno učitavanje kursne liste.');
+        setRates([]);
+        setAccounts([]);
       } finally {
         setLoading(false);
       }
@@ -66,9 +85,10 @@ export default function ExchangePage() {
   }, [setValue]);
 
   const fromCurrency = watch('fromCurrency');
+  const safeAccounts = useMemo(() => asArray<Account>(accounts), [accounts]);
   const eligibleAccounts = useMemo(
-    () => accounts.filter((account) => account.currency === fromCurrency),
-    [accounts, fromCurrency]
+    () => safeAccounts.filter((account) => account.currency === fromCurrency),
+    [safeAccounts, fromCurrency]
   );
 
   useEffect(() => {
@@ -115,13 +135,13 @@ export default function ExchangePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rates.map((rate) => (
+                  {asArray<ExchangeRate>(rates).map((rate) => (
                     <tr key={rate.currency} className="border-b">
                       <td className="py-2">{rate.currency}</td>
-                      <td className="py-2">{rate.buyRate.toFixed(4)}</td>
-                      <td className="py-2">{rate.sellRate.toFixed(4)}</td>
-                      <td className="py-2">{rate.middleRate.toFixed(4)}</td>
-                      <td className="py-2">{new Date(rate.date).toLocaleDateString('sr-RS')}</td>
+                      <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
+                      <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
+                      <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
+                      <td className="py-2">{formatDate(rate.date)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -178,7 +198,7 @@ export default function ExchangePage() {
             {result && (
               <div className="mt-4 rounded-md border p-3 text-sm">
                 <p>
-                  {watch('amount')} {watch('fromCurrency')} = {result.convertedAmount.toFixed(2)} {watch('toCurrency')} po kursu {result.rate.toFixed(4)}
+                  {watch('amount')} {watch('fromCurrency')} = {formatAmount(result.convertedAmount)} {watch('toCurrency')} po kursu {formatAmount(result.rate, 4)}
                 </p>
               </div>
             )}

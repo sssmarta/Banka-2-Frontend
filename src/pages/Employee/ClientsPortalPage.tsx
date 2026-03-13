@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
 import type { Client } from '@/types';
@@ -21,6 +21,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
 
 export default function ClientsPortalPage() {
   const navigate = useNavigate();
@@ -52,10 +61,11 @@ export default function ClientsPortalPage() {
         page,
         limit: 10,
       });
-      setClients(response.content);
+      setClients(asArray<Client>(response.content));
       setTotalPages(Math.max(1, response.totalPages));
     } catch {
       toast.error('Neuspešno učitavanje klijenata.');
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -74,7 +84,7 @@ export default function ClientsPortalPage() {
 
     try {
       const accountsResponse = await accountService.getAll({ ownerEmail: client.email, page: 0, limit: 20 });
-      setClientAccounts(accountsResponse.content);
+      setClientAccounts(asArray<Account>(accountsResponse.content));
     } catch {
       setClientAccounts([]);
     }
@@ -155,7 +165,7 @@ export default function ClientsPortalPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {clients.map((client) => (
+                  {asArray<Client>(clients).map((client) => (
                     <tr key={client.id} className="border-b">
                       <td className="py-2">{client.firstName}</td>
                       <td className="py-2">{client.lastName}</td>
@@ -240,7 +250,7 @@ export default function ClientsPortalPage() {
 
             <div className="space-y-2">
               <h3 className="font-semibold">Računi klijenta</h3>
-              {clientAccounts.length === 0 ? (
+              {asArray<Account>(clientAccounts).length === 0 ? (
                 <p className="text-muted-foreground">Nema računa za ovog klijenta.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -256,12 +266,12 @@ export default function ClientsPortalPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clientAccounts.map((account) => (
+                      {asArray<Account>(clientAccounts).map((account) => (
                         <tr key={account.id} className="border-b">
                           <td className="py-2">{account.accountNumber}</td>
                           <td className="py-2">{account.accountType}</td>
                           <td className="py-2">{account.currency}</td>
-                          <td className="py-2">{account.balance.toFixed(2)}</td>
+                          <td className="py-2">{formatAmount(account.balance)}</td>
                           <td className="py-2">{account.status}</td>
                           <td className="py-2">
                             <Button

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import { createEmployeeSchema, type CreateEmployeeFormData } from '../../utils/validationSchemas';
 import { employeeService } from '../../services/employeeService';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

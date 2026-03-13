@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction } from '@/types/celina2';
@@ -31,6 +31,17 @@ function statusClass(status: string): string {
 function formatAccountNumber(accountNumber: string): string {
   if (accountNumber.length !== 18) return accountNumber;
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 7)}-${accountNumber.slice(7, 16)}-${accountNumber.slice(16)}`;
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
 }
 
 export default function AccountDetailsPage() {
@@ -149,9 +160,9 @@ export default function AccountDetailsPage() {
               <CardTitle>Stanje računa</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2 md:grid-cols-2 text-sm">
-              <p>Stanje: <span className="font-medium">{account.balance.toFixed(2)} {account.currency}</span></p>
-              <p>Raspoloživo: <span className="font-medium">{account.availableBalance.toFixed(2)} {account.currency}</span></p>
-              <p>Rezervisano: <span className="font-medium">{account.reservedBalance.toFixed(2)} {account.currency}</span></p>
+              <p>Stanje: <span className="font-medium">{formatAmount(account.balance)} {account.currency}</span></p>
+              <p>Raspoloživo: <span className="font-medium">{formatAmount(account.availableBalance)} {account.currency}</span></p>
+              <p>Rezervisano: <span className="font-medium">{formatAmount(account.reservedBalance)} {account.currency}</span></p>
               <p>Podvrsta: <span className="font-medium">{account.accountSubtype || '-'}</span></p>
             </CardContent>
           </Card>
@@ -162,11 +173,11 @@ export default function AccountDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div>
-                <p>Dnevni limit / potrošnja: {account.dailyLimit.toFixed(2)} / {account.dailySpending.toFixed(2)} {account.currency}</p>
+                <p>Dnevni limit / potrošnja: {formatAmount(account.dailyLimit)} / {formatAmount(account.dailySpending)} {account.currency}</p>
                 <progress className="w-full h-2" max={100} value={dailyProgress} />
               </div>
               <div>
-                <p>Mesečni limit / potrošnja: {account.monthlyLimit.toFixed(2)} / {account.monthlySpending.toFixed(2)} {account.currency}</p>
+                <p>Mesečni limit / potrošnja: {formatAmount(account.monthlyLimit)} / {formatAmount(account.monthlySpending)} {account.currency}</p>
                 <progress className="w-full h-2" max={100} value={monthlyProgress} />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
@@ -235,10 +246,10 @@ export default function AccountDetailsPage() {
                             : transaction.fromAccountNumber;
                         return (
                           <tr key={transaction.id} className="border-b">
-                            <td className="py-2">{new Date(transaction.createdAt).toLocaleString('sr-RS')}</td>
+                            <td className="py-2">{formatDateTime(transaction.createdAt)}</td>
                             <td className="py-2">{transaction.description || transaction.paymentPurpose}</td>
                             <td className="py-2">{counterparty}</td>
-                            <td className="py-2">{transaction.amount.toFixed(2)} {transaction.currency}</td>
+                            <td className="py-2">{formatAmount(transaction.amount)} {transaction.currency}</td>
                             <td className="py-2">{transaction.status}</td>
                           </tr>
                         );

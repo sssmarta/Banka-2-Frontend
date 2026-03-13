@@ -11,16 +11,25 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import type { Account, AccountStatus, AccountType } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 function statusClass(status: AccountStatus): string {
   if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
   if (status === 'BLOCKED') return 'bg-red-100 text-red-700';
   return 'bg-muted text-muted-foreground';
+}
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
 }
 
 export default function AccountsPortalPage() {
@@ -43,10 +52,11 @@ export default function AccountsPortalPage() {
         page,
         limit: 10,
       });
-      setAccounts(response.content);
+      setAccounts(asArray<Account>(response.content));
       setTotalPages(Math.max(1, response.totalPages));
     } catch {
       toast.error('Neuspešno učitavanje računa.');
+      setAccounts([]);
     } finally {
       setLoading(false);
     }
@@ -131,13 +141,13 @@ export default function AccountsPortalPage() {
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((account) => (
+                {asArray<Account>(accounts).map((account) => (
                   <tr key={account.id} className="border-b">
                     <td className="py-2">{account.ownerName}</td>
                     <td className="py-2">{account.accountNumber}</td>
                     <td className="py-2">{account.accountType}</td>
                     <td className="py-2">{account.currency}</td>
-                    <td className="py-2">{account.balance.toFixed(2)}</td>
+                    <td className="py-2">{formatAmount(account.balance)}</td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(account.status)}`}>{account.status}</span>
                     </td>

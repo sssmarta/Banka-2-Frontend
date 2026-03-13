@@ -8,26 +8,92 @@
 // 3. Brzo placanje widget (skracena forma za placanje, otvara NewPaymentPage)
 // 4. Kursna lista widget (currencyService.getExchangeRates)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/notify';
+import { Users, UserPlus, Building2, BookUser, ShieldCheck, FileText, Landmark, TrendingUp } from 'lucide-react';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
+import { employeeService } from '@/services/employeeService';
 import type { Account, ExchangeRate, PaymentRecipient, Transaction } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/context/AuthContext';
+
+function formatAmount(value: number | null | undefined, decimals = 2): string {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+interface AdminCard {
+  title: string;
+  description: string;
+  path: string;
+  icon: ReactNode;
+}
+
+const adminCards: AdminCard[] = [
+  {
+    title: 'Lista zaposlenih',
+    description: 'Pregled i upravljanje zaposlenima.',
+    path: '/admin/employees',
+    icon: <Users className="h-6 w-6" />,
+  },
+  {
+    title: 'Novi zaposleni',
+    description: 'Kreiranje naloga za zaposlenog.',
+    path: '/admin/employees/new',
+    icon: <UserPlus className="h-6 w-6" />,
+  },
+  {
+    title: 'Portal računa',
+    description: 'Otvaranje i pregled klijentskih računa.',
+    path: '/employee/accounts',
+    icon: <Building2 className="h-6 w-6" />,
+  },
+  {
+    title: 'Portal klijenata',
+    description: 'Pregled klijenata i njihovih računa.',
+    path: '/employee/clients',
+    icon: <BookUser className="h-6 w-6" />,
+  },
+  {
+    title: 'Zahtevi za kredit',
+    description: 'Obrada klijentskih zahteva za kredit.',
+    path: '/employee/loan-requests',
+    icon: <ShieldCheck className="h-6 w-6" />,
+  },
+  {
+    title: 'Svi krediti',
+    description: 'Pregled svih aktivnih i završenih kredita.',
+    path: '/employee/loans',
+    icon: <FileText className="h-6 w-6" />,
+  },
+];
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipients, setRecipients] = useState<PaymentRecipient[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminStats, setAdminStats] = useState({ total: 0, active: 0, loading: false });
 
   const [quickFrom, setQuickFrom] = useState('');
   const [quickRecipient, setQuickRecipient] = useState('');
@@ -44,16 +110,26 @@ export default function HomePage() {
           currencyService.getExchangeRates(),
         ]);
 
-        setAccounts(myAccounts);
-        setTransactions(recentTransactions.content);
-        setRecipients(savedRecipients);
-        setExchangeRates(rates.slice(0, 8));
+        const safeAccounts = asArray<Account>(myAccounts);
+        const txSource = (recentTransactions as { content?: unknown } | undefined)?.content ?? recentTransactions;
+        const safeTransactions = asArray<Transaction>(txSource);
+        const safeRecipients = asArray<PaymentRecipient>(savedRecipients);
+        const safeRates = asArray<ExchangeRate>(rates);
 
-        if (myAccounts.length > 0) {
-          setQuickFrom(myAccounts[0].accountNumber);
+        setAccounts(safeAccounts);
+        setTransactions(safeTransactions);
+        setRecipients(safeRecipients);
+        setExchangeRates(safeRates.slice(0, 8));
+
+        if (safeAccounts.length > 0) {
+          setQuickFrom(safeAccounts[0].accountNumber ?? '');
         }
       } catch {
         toast.error('Neuspešno učitavanje početnih podataka.');
+        setAccounts([]);
+        setTransactions([]);
+        setRecipients([]);
+        setExchangeRates([]);
       } finally {
         setLoading(false);
       }
@@ -61,6 +137,28 @@ export default function HomePage() {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const loadAdminStats = async () => {
+      setAdminStats((prev) => ({ ...prev, loading: true }));
+      try {
+        const response = await employeeService.getAll({ limit: 100 });
+        const allEmployees = Array.isArray(response?.content) ? response.content : [];
+        const activeEmployees = allEmployees.filter((emp) => emp?.isActive).length;
+        setAdminStats({
+          total: Number(response?.totalElements) || allEmployees.length,
+          active: activeEmployees,
+          loading: false,
+        });
+      } catch {
+        setAdminStats((prev) => ({ ...prev, loading: false }));
+      }
+    };
+
+    loadAdminStats();
+  }, [isAdmin]);
 
   const goToQuickPayment = () => {
     if (!quickFrom || !quickRecipient || !quickAmount) {
@@ -81,7 +179,69 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Dobrodošli</h1>
+      <h1 className="text-3xl font-bold">Dobrodošli{user?.firstName ? `, ${user.firstName}` : ''}</h1>
+
+      {isAdmin && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold">Admin pregled</h2>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Ukupno zaposlenih</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{adminStats.loading ? '-' : adminStats.total}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Aktivnih zaposlenih</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{adminStats.loading ? '-' : adminStats.active}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Neaktivnih zaposlenih</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {adminStats.loading ? '-' : Math.max(adminStats.total - adminStats.active, 0)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Brze admin akcije
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {adminCards.map((card) => (
+                <Card
+                  key={card.path}
+                  className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-1"
+                  onClick={() => navigate(card.path)}
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <span className="text-primary">{card.icon}</span>
+                      {card.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">{card.description}</CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-xl font-semibold mb-4">Moji računi</h2>
@@ -99,7 +259,7 @@ export default function HomePage() {
                 <CardContent className="space-y-1 text-sm">
                   <p>{account.accountNumber}</p>
                   <p>Tip: <span className="font-medium">{account.accountType}</span></p>
-                  <p>Stanje: <span className="font-medium">{account.balance.toFixed(2)} {account.currency}</span></p>
+                  <p>Stanje: <span className="font-medium">{formatAmount(account.balance)} {account.currency}</span></p>
                 </CardContent>
               </Card>
             ))}
@@ -131,9 +291,9 @@ export default function HomePage() {
                 <tbody>
                   {transactions.map((tx) => (
                     <tr key={tx.id} className="border-b">
-                      <td className="py-2">{new Date(tx.createdAt).toLocaleString('sr-RS')}</td>
+                      <td className="py-2">{formatDateTime(tx.createdAt)}</td>
                       <td className="py-2">{tx.recipientName}</td>
-                      <td className="py-2">{tx.amount.toFixed(2)} {tx.currency}</td>
+                      <td className="py-2">{formatAmount(tx.amount)} {tx.currency}</td>
                       <td className="py-2">{tx.status}</td>
                     </tr>
                   ))}
@@ -214,9 +374,9 @@ export default function HomePage() {
                   {exchangeRates.map((rate) => (
                     <tr key={rate.currency} className="border-b">
                       <td className="py-2">{rate.currency}</td>
-                      <td className="py-2">{rate.buyRate.toFixed(4)}</td>
-                      <td className="py-2">{rate.sellRate.toFixed(4)}</td>
-                      <td className="py-2">{rate.middleRate.toFixed(4)}</td>
+                      <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
+                      <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
+                      <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
                     </tr>
                   ))}
                 </tbody>

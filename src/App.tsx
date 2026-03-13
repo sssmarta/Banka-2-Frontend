@@ -1,10 +1,9 @@
-﻿import { Routes, Route } from 'react-router-dom';
+﻿import { Routes, Route, Navigate } from 'react-router-dom';
 
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import LoginPage from './pages/Login/LoginPage';
 import LandingPage from './pages/Landing/LandingPage';
-import DashboardPage from './pages/Dashboard/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPassword/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPassword/ResetPasswordPage';
 import ActivateAccountPage from './pages/ActivateAccount/ActivateAccountPage';
@@ -55,8 +54,8 @@ export default function App() {
       {/* Zasticene rute - zahtevaju login */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          {/* Dashboard (legacy, moze se preusmeriti na /home) */}
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/* Legacy ruta - Dashboard preusmeren na novu početnu */}
+          <Route path="/dashboard" element={<Navigate to="/home" replace />} />
 
           {/* Celina 2 - Klijentske rute */}
           <Route path="/home" element={<HomePage />} />
