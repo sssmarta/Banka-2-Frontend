@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Landmark, Home, Users, LogOut, User, Sun, Moon, Monitor,
   Wallet, CreditCard, ArrowLeftRight, RefreshCw, Receipt, BookUser,
-  Building2, ShieldCheck, FileText,
+  Building2, ShieldCheck, FileText, History,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -26,7 +26,6 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  // Klijentske stavke
   {
     label: 'Početna',
     path: '/home',
@@ -43,9 +42,19 @@ const navItems: NavItem[] = [
     icon: <Receipt className="mr-2 h-4 w-4" />,
   },
   {
+    label: 'Primaoci',
+    path: '/payments/recipients',
+    icon: <BookUser className="mr-2 h-4 w-4" />,
+  },
+  {
     label: 'Prenosi',
     path: '/transfers',
     icon: <ArrowLeftRight className="mr-2 h-4 w-4" />,
+  },
+  {
+    label: 'Istorija',
+    path: '/payments/history',
+    icon: <History className="mr-2 h-4 w-4" />,
   },
   {
     label: 'Menjačnica',
@@ -62,7 +71,6 @@ const navItems: NavItem[] = [
     path: '/loans',
     icon: <FileText className="mr-2 h-4 w-4" />,
   },
-  // Employee/Admin stavke
   {
     label: 'Zaposleni',
     path: '/admin/employees',
@@ -76,6 +84,12 @@ const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
+    label: 'Portal kartica',
+    path: '/employee/cards',
+    icon: <CreditCard className="mr-2 h-4 w-4" />,
+    adminOnly: true,
+  },
+  {
     label: 'Portal klijenata',
     path: '/employee/clients',
     icon: <BookUser className="mr-2 h-4 w-4" />,
@@ -85,6 +99,12 @@ const navItems: NavItem[] = [
     label: 'Zahtevi',
     path: '/employee/loan-requests',
     icon: <ShieldCheck className="mr-2 h-4 w-4" />,
+    adminOnly: true,
+  },
+  {
+    label: 'Svi krediti',
+    path: '/employee/loans',
+    icon: <FileText className="mr-2 h-4 w-4" />,
     adminOnly: true,
   },
 ];
