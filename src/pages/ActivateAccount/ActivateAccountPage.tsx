@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { getPasswordStrength, getStrengthInfo } from '../../utils/passwordStrength';
+import AuthPageLayout from '@/components/layout/AuthPageLayout';
 
 export default function ActivateAccountPage() {
   const [searchParams] = useSearchParams();
@@ -64,135 +65,140 @@ export default function ActivateAccountPage() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-indigo-950 p-4">
-        <Card className="w-full max-w-[440px] shadow-xl">
-          <CardContent className="p-6 text-center">
-            <Alert variant="destructive">
-              <AlertDescription>
-                Nevažeći link za aktivaciju. Kontaktirajte vašeg administratora.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthPageLayout>
+        <div className="mx-auto max-w-[440px] animate-fade-up">
+          <Card className="shadow-2xl shadow-indigo-500/5">
+            <CardContent className="p-6 text-center">
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Nevažeći link za aktivaciju. Kontaktirajte vašeg administratora.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </div>
+      </AuthPageLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-indigo-950 p-4">
-      <Card className="w-full max-w-[480px] shadow-xl">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Landmark className="h-6 w-6 text-primary" />
-          </div>
-          <CardTitle className="text-xl">Aktivacija naloga</CardTitle>
-          <CardDescription>
-            Postavite svoju lozinku za pristup sistemu
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {success ? (
-            <div className="text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-emerald-700">
-                Nalog uspešno aktiviran!
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Sada se možete prijaviti sa vašim email-om i lozinkom.
-              </p>
-              <Button className="w-full" onClick={() => navigate('/login')}>
-                Idi na prijavu
-              </Button>
+    <AuthPageLayout>
+      <div className="mx-auto w-full max-w-[480px] animate-fade-up">
+        <Card className="shadow-2xl shadow-indigo-500/5">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
+              <Landmark className="h-6 w-6 text-white" />
             </div>
-          ) : (
-            <>
-              {serverError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertDescription>{serverError}</AlertDescription>
-                </Alert>
-              )}
-
-              <Alert variant="info" className="mb-4">
-                <AlertDescription>
-                  Lozinka mora imati: 8-32 karaktera, najmanje 2 broja, 1 veliko i 1 malo slovo.
-                </AlertDescription>
-              </Alert>
-
-              <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Nova lozinka</Label>
-                  <div className="relative">
-                    <Input
-                      {...register('password')}
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      className={cn(errors.password ? 'border-destructive pr-10' : 'pr-10')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password.message}</p>
-                  )}
-
-                  {passwordValue && (
-                    <div className="space-y-1">
-                      <Progress
-                        value={strength}
-                        className="h-1.5"
-                        indicatorClassName={strengthInfo.color}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Jačina lozinke: <span className="font-medium">{strengthInfo.label}</span>
-                      </p>
-                    </div>
-                  )}
+            <CardTitle className="text-xl">Aktivacija naloga</CardTitle>
+            <CardDescription>
+              Postavite svoju lozinku za pristup sistemu
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {success ? (
+              <div className="text-center space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/30">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Potvrdite lozinku</Label>
-                  <div className="relative">
-                    <Input
-                      {...register('confirmPassword')}
-                      id="confirmPassword"
-                      type={showConfirm ? 'text' : 'password'}
-                      className={cn(errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.confirmPassword && (
-                    <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-                  )}
-                </div>
-
-                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Aktivacija...
-                    </>
-                  ) : (
-                    'Aktiviraj nalog'
-                  )}
+                <h3 className="text-lg font-semibold">Nalog uspešno aktiviran!</h3>
+                <p className="text-sm text-muted-foreground">
+                  Sada se možete prijaviti sa vašim email-om i lozinkom.
+                </p>
+                <Button
+                  className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold"
+                  onClick={() => navigate('/login')}
+                >
+                  Idi na prijavu
                 </Button>
-              </form>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            ) : (
+              <>
+                {serverError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertDescription>{serverError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="mb-4 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3">
+                  <p className="text-xs text-indigo-600 dark:text-indigo-300">
+                    Lozinka mora imati: 8-32 karaktera, najmanje 2 broja, 1 veliko i 1 malo slovo.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Nova lozinka</Label>
+                    <div className="relative">
+                      <Input
+                        {...register('password')}
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        className={cn('pr-10', errors.password && 'border-destructive')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-sm text-destructive">{errors.password.message}</p>
+                    )}
+                    {passwordValue && (
+                      <div className="space-y-1">
+                        <Progress value={strength} className="h-1.5" indicatorClassName={strengthInfo.color} />
+                        <p className="text-xs text-muted-foreground">
+                          Jačina lozinke: <span className="font-medium">{strengthInfo.label}</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Potvrdite lozinku</Label>
+                    <div className="relative">
+                      <Input
+                        {...register('confirmPassword')}
+                        id="confirmPassword"
+                        type={showConfirm ? 'text' : 'password'}
+                        className={cn('pr-10', errors.confirmPassword && 'border-destructive')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm(!showConfirm)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+                    )}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all"
+                    size="lg"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Aktivacija...
+                      </>
+                    ) : (
+                      'Aktiviraj nalog'
+                    )}
+                  </Button>
+                </form>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AuthPageLayout>
   );
 }
