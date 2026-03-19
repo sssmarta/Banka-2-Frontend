@@ -14,7 +14,7 @@ import {
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { cardService } from '@/services/cardService';
-import type { Account, CardType, Card as BankCard } from '@/types/celina2';
+import type { Account, CardType, Card as BankCard, NewCardRequest } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -97,7 +97,7 @@ export default function AccountCardsPage() {
         const accountData = await accountService.getById(accountId);
         setAccountNumber(accountData.accountNumber);
         setAccount(accountData);
-        const cardsData = await cardService.getByAccount(accountData.accountNumber);
+        const cardsData = await cardService.getByAccount(accountId);
         setCards(Array.isArray(cardsData) ? cardsData : []);
       } catch {
         toast.error('Greska pri ucitavanju racuna.');
@@ -117,11 +117,9 @@ export default function AccountCardsPage() {
     setLoading(true);
     setError('');
     try {
-      const [accountData, cardsData] = await Promise.all([
-        accountService.getByAccountNumber(accountNumber),
-        cardService.getByAccount(accountNumber),
-      ]);
+      const accountData = await accountService.getById(Number(accountNumber));
       setAccount(accountData);
+      const cardsData = await cardService.getByAccount(accountData.id);
       setCards(Array.isArray(cardsData) ? cardsData : []);
     } catch {
       setError('Pretraga kartica nije uspela.');
@@ -155,9 +153,8 @@ export default function AccountCardsPage() {
 
     setIsCreating(true);
     try {
-      const created = await cardService.create({ accountNumber, cardType: newCardType as CardType });
-      await cardService.requestCardVerification(created.id);
-      toast.success('Kartica kreirana. Poslat je zahtev za verifikaciju.');
+      await cardService.create({ accountId: account?.id ?? 0 } as NewCardRequest);
+      toast.success('Kartica kreirana.');
       setShowCreateCard(false);
       setNewCardType('');
       await searchCards();

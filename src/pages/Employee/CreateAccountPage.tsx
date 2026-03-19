@@ -114,8 +114,8 @@ export default function CreateAccountPage() {
     const timeoutId = window.setTimeout(async () => {
       setIsSearchingClient(true);
       try {
-        const clients = await clientService.search(query);
-        setClientSuggestions(clients.slice(0, 5));
+        const result = await clientService.getAll({ email: query, page: 0, limit: 5 });
+        setClientSuggestions((result.content ?? []).slice(0, 5));
       } catch {
         setClientSuggestions([]);
       } finally {

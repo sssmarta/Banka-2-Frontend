@@ -1,7 +1,6 @@
 import api from './api';
 import type {
   Account,
-  BusinessAccount,
   AccountFilters,
   CreateAccountRequest,
   ChangeLimitRequest,

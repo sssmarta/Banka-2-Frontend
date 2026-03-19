@@ -95,12 +95,9 @@ export default function BusinessAccountDetailsPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [accountData, details] = await Promise.all([
-          accountService.getById(accountId),
-          accountService.getBusinessDetails(accountId),
-        ]);
+        const accountData = await accountService.getById(accountId);
         setAccount(accountData);
-        setBusinessDetails(details);
+        setBusinessDetails(accountData as unknown as BusinessAccount);
         setRenameValue(accountData.name || '');
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));

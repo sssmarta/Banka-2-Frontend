@@ -171,16 +171,17 @@ export default function TransferPage() {
 
     const loadRate = async () => {
       try {
-        const rate = await currencyService.getRate(
-          fromAccountData.currency,
-          toAccountData.currency
-        );
+        const result = await currencyService.convert({
+          fromCurrency: fromAccountData.currency,
+          toCurrency: toAccountData.currency,
+          amount,
+        });
 
         if (cancelled) return;
 
         setExchangePreview({
-          rate: rate.middleRate,
-          convertedAmount: amount * rate.middleRate,
+          rate: result.exchangeRate,
+          convertedAmount: result.convertedAmount,
         });
       } catch {
         if (cancelled) return;

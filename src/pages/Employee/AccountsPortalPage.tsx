@@ -115,14 +115,9 @@ export default function AccountsPortalPage() {
     setPage(0);
   }, [ownerEmail, accountType, status]);
 
-  const changeStatus = async (accountId: number, nextStatus: AccountStatus) => {
-    try {
-      await accountService.changeStatus(accountId, nextStatus);
-      toast.success('Status racuna je azuriran.');
-      await loadAccounts();
-    } catch {
-      toast.error('Promena statusa nije uspela.');
-    }
+  const changeStatus = async (_accountId: number, _nextStatus: AccountStatus) => {
+    // TODO: Backend endpoint za promenu statusa racuna nije implementiran
+    toast.error('Promena statusa racuna trenutno nije dostupna.');
   };
 
   const from = totalElements > 0 ? page * rowsPerPage + 1 : 0;

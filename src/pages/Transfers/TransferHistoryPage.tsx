@@ -63,16 +63,9 @@ export default function TransferHistoryPage() {
     const loadTransfers = async () => {
       setLoading(true);
       try {
-        const response = await transactionService.getTransfers({
-          accountNumber: accountNumber || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          page,
-          limit,
-        });
-
-        setTransfers(asArray<Transfer>(response.content));
-        setTotalPages(Math.max(1, response.totalPages));
+        const transfers = await transactionService.getTransfers();
+        setTransfers(asArray<Transfer>(transfers));
+        setTotalPages(1);
       } catch {
         toast.error('Neuspesno ucitavanje istorije transfera.');
         setTransfers([]);

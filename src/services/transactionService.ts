@@ -54,7 +54,7 @@ export const transactionService = {
     return response.data;
   },
 
-  getTransfers: async (filters?: TransactionFilters): Promise<Transfer[]> => {
+  getTransfers: async (): Promise<Transfer[]> => {
     const response = await api.get<Transfer[]>('/transfers');
     return response.data;
   },

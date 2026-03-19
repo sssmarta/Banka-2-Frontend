@@ -150,7 +150,7 @@ export default function ExchangePage() {
         amount: data.amount,
         accountNumber: data.accountNumber,
       });
-      setResult(conversion);
+      setResult({ convertedAmount: conversion.convertedAmount, rate: conversion.exchangeRate });
     } catch {
       toast.error('Konverzija nije uspela.');
       setResult(null);
