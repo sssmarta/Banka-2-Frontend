@@ -19,7 +19,7 @@ import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
 import type { Client } from '@/types';
-import type { AccountSubtype, Currency } from '@/types/celina2';
+import type { AccountType, AccountSubtype, Currency } from '@/types/celina2';
 import {
   createAccountSchema,
   type CreateAccountFormData,
