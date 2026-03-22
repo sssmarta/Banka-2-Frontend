@@ -35,7 +35,9 @@
 // - Skeleton loading
 // - Empty state sa ikonom
 
-//import { useEffect, useState } from 'react';
+// @ts-expect-error stub page — hooks will be used once implemented
+import { useEffect, useState } from 'react';
+
 export default function SecuritiesListPage() {
   // TODO: Implementirati prema TODO komentarima iznad
 

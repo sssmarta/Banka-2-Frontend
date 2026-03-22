@@ -1,5 +1,6 @@
 import api from './api';
 import type { TaxRecord } from '../types/celina3';
+
 // FIXME: Svi endpointi cekaju backend implementaciju (post-Sprint 3)
 
 const taxService = {

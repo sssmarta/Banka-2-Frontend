@@ -1,5 +1,6 @@
 import api from './api';
 import type { ActuaryInfo, UpdateActuaryLimit } from '../types/celina3';
+
 // FIXME: Svi endpointi cekaju backend implementaciju iz Sprint 3
 
 const actuaryService = {
