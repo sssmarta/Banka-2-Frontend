@@ -190,6 +190,7 @@ export default function ClientSidebar() {
                   to={item.path}
                   className={linkClassName}
                   onClick={() => setOpen(false)}
+                  end={item.path === '/transfers'} // da /transfers ne hvata i /transfers/history
                 >
                   {item.icon}
                   <span>{item.label}</span>
