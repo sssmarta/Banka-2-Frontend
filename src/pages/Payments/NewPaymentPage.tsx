@@ -54,6 +54,7 @@ export default function NewPaymentPage() {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<NewPaymentFormData>({
     resolver: zodResolver(newPaymentSchema),
@@ -144,9 +145,7 @@ export default function NewPaymentPage() {
       const error = err as { response?: { data?: { message?: string } } };
       const msg = error.response?.data?.message || 'Kreiranje placanja nije uspelo.';
       toast.error(msg);
-      if (msg.toLowerCase().includes('ne postoji') || msg.toLowerCase().includes('not found')) {
-        setValue('toAccountNumber', '');
-      }
+      reset();
     } finally {
       setIsSubmitting(false);
     }
