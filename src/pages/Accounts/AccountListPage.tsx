@@ -394,6 +394,7 @@ export default function AccountListPage() {
                 <TableHead>Raspolozivo stanje</TableHead>
                 <TableHead>Valuta</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Akcije</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -445,6 +446,22 @@ export default function AccountListPage() {
                       <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
                         {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (account.accountType === 'POSLOVNI' || account.accountType === 'BUSINESS') {
+                            navigate(`/accounts/${account.id}/business`);
+                          } else {
+                            navigate(`/accounts/${account.id}`);
+                          }
+                        }}
+                      >
+                        Detalji
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

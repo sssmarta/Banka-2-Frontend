@@ -118,7 +118,20 @@ export default function AccountCardsPage() {
     setLoading(true);
     setError('');
     try {
-      const accountData = await accountService.getById(Number(accountNumber));
+      // Pretraga: probaj po ID-ju, pa po broju racuna
+      let accountData;
+      const numId = Number(accountNumber);
+      if (Number.isFinite(numId) && numId > 0 && numId < 1000000) {
+        accountData = await accountService.getById(numId);
+      } else {
+        // Pretraga po broju racuna - trazi u svim racunima
+        const allAccounts = await accountService.getAll({ page: 0, limit: 100 });
+        const found = allAccounts.content?.find((a: { accountNumber?: string }) =>
+          a.accountNumber?.includes(accountNumber.replace(/-/g, ''))
+        );
+        if (!found) throw new Error('Racun nije pronadjen');
+        accountData = found;
+      }
       setAccount(accountData);
       const cardsData = await cardService.getByAccount(accountData.id);
       setCards(Array.isArray(cardsData) ? cardsData : []);
