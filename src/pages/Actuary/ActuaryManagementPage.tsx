@@ -134,7 +134,9 @@ export default function ActuaryManagementPage() {
         current.map((agent) => (agent.employeeId === updated.employeeId ? updated : agent))
       );
       toast.success('Limit je uspesno azuriran.');
-      closeEditDialog();
+      setEditingAgent(null);
+      setEditDailyLimit('');
+      setEditNeedApproval(false);
     } catch {
       toast.error('Azuriranje limita nije uspelo.');
     } finally {

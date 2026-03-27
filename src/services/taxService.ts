@@ -1,13 +1,10 @@
 import api from './api';
 import type { TaxRecord } from '../types/celina3';
 
-// FIXME: Svi endpointi cekaju backend implementaciju (post-Sprint 3)
-
 const taxService = {
   /**
    * GET /tax?userType=&name=
    * Lista korisnika sa dugovanjima (za supervizor portal).
-   * FIXME: Backend endpoint - GET /tax
    */
   getTaxRecords: async (userType?: string, name?: string): Promise<TaxRecord[]> => {
     const response = await api.get('/tax', {
@@ -17,9 +14,17 @@ const taxService = {
   },
 
   /**
+   * GET /tax/my
+   * Vraca poreski zapis za autentifikovanog korisnika.
+   */
+  getMyTaxRecord: async (): Promise<TaxRecord> => {
+    const response = await api.get('/tax/my');
+    return response.data;
+  },
+
+  /**
    * POST /tax/calculate
    * Pokreni obracun poreza za tekuci mesec.
-   * FIXME: Backend endpoint - POST /tax/calculate
    */
   triggerCalculation: async (): Promise<void> => {
     await api.post('/tax/calculate');

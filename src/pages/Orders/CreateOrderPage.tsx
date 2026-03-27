@@ -672,6 +672,7 @@ export default function CreateOrderPage() {
         listingId: pendingOrder.listingId,
         orderType: pendingOrder.orderType,
         quantity: pendingOrder.quantity,
+        contractSize: confirmationContractSize,
         direction: pendingOrder.direction,
         limitValue: pendingOrder.limitValue,
         stopValue: pendingOrder.stopValue,

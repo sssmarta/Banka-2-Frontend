@@ -1,13 +1,10 @@
 import api from './api';
 import type { PortfolioItem, PortfolioSummary } from '../types/celina3';
 
-// FIXME: Svi endpointi cekaju backend implementaciju (post-Sprint 3)
-
 const portfolioService = {
   /**
    * GET /portfolio/my
-   * Lista hartija u vlasnistvu korisnika.
-   * FIXME: Backend endpoint - GET /portfolio/my
+   * Lista hartija u vlasnistvu korisnika sa trenutnim cenama i profitom.
    */
   getMyPortfolio: async (): Promise<PortfolioItem[]> => {
     const response = await api.get('/portfolio/my');
@@ -16,8 +13,7 @@ const portfolioService = {
 
   /**
    * GET /portfolio/summary
-   * Ukupna vrednost, profit, porez.
-   * FIXME: Backend endpoint - GET /portfolio/summary
+   * Ukupna vrednost portfolija, profit, porez.
    */
   getSummary: async (): Promise<PortfolioSummary> => {
     const response = await api.get('/portfolio/summary');
@@ -27,7 +23,6 @@ const portfolioService = {
   /**
    * PATCH /portfolio/{id}/public
    * Postavi broj akcija u javnom rezimu (za OTC trading).
-   * FIXME: Backend endpoint - PATCH /portfolio/{id}/public
    */
   setPublicQuantity: async (id: number, quantity: number): Promise<PortfolioItem> => {
     const response = await api.patch(`/portfolio/${id}/public`, { quantity });

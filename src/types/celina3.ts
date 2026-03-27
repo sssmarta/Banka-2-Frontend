@@ -87,6 +87,7 @@ export interface ListingDailyPrice {
 
 export interface Order {
   id: number;
+  listingId: number;
   userName: string;
   userRole: string;
   listingTicker: string;
@@ -115,6 +116,7 @@ export interface CreateOrderRequest {
   listingId: number;
   orderType: string;
   quantity: number;
+  contractSize?: number;
   direction: string;
   limitValue?: number;
   stopValue?: number;
