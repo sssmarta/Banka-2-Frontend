@@ -38,8 +38,6 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
-
-
 interface SidebarItem {
   label: string;
   path: string;
@@ -155,7 +153,7 @@ export default function ClientSidebar() {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-background/95 backdrop-blur-sm p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0 flex flex-col',
+          'fixed left-0 top-0 z-50 h-dvh w-64 border-r bg-background/95 backdrop-blur-sm p-4 transition-transform md:translate-x-0 flex flex-col',
           open ? 'translate-x-0' : '-translate-x-full',
           'transform'
         )}
@@ -173,8 +171,7 @@ export default function ClientSidebar() {
           </Button>
         </div>
 
-        {/* User Profile Section */}
-        <div className="mb-6 flex items-center gap-3 rounded-xl border bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-3">
+        <div className="shrink-0 mb-6 flex items-center gap-3 rounded-xl border bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-3">
           <Avatar className="h-11 w-11 ring-2 ring-indigo-500/20">
             <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold text-sm">
               {getInitials()}
@@ -188,8 +185,7 @@ export default function ClientSidebar() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-6 overflow-y-auto">
+        <nav className="flex-1 space-y-6 overflow-y-auto scrollbar-hidden">
           <div className="space-y-1">
             <NavLink
               to="/home"
@@ -267,8 +263,7 @@ export default function ClientSidebar() {
           )}
         </nav>
 
-        {/* Theme Selector and Logout */}
-        <div className="space-y-2 border-t pt-4">
+        <div className="shrink-0 space-y-2 border-t pt-4 mt-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground">

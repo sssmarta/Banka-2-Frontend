@@ -9,20 +9,19 @@ import type {
 } from '../types/celina2';
 import type { PaginatedResponse } from '../types';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTransferResponse(data: any): Transfer {
+function mapTransferResponse(data: Record<string, unknown>): Transfer {
   return {
-    id: data.id,
-    fromAccountNumber: data.fromAccountNumber,
-    toAccountNumber: data.toAccountNumber,
-    amount: data.amount,
-    fromCurrency: data.fromCurrency,
-    toCurrency: data.toCurrency,
-    exchangeRate: data.exchangeRate ?? undefined,
-    convertedAmount: data.toAmount ?? data.convertedAmount ?? undefined,
-    commission: data.commission ?? undefined,
-    status: data.status,
-    createdAt: data.createdAt,
+    id: data.id as number,
+    fromAccountNumber: data.fromAccountNumber as string,
+    toAccountNumber: data.toAccountNumber as string,
+    amount: data.amount as number,
+    fromCurrency: data.fromCurrency as Transfer['fromCurrency'],
+    toCurrency: data.toCurrency as Transfer['toCurrency'],
+    exchangeRate: (data.exchangeRate as number) ?? undefined,
+    convertedAmount: (data.toAmount as number) ?? (data.convertedAmount as number) ?? undefined,
+    commission: (data.commission as number) ?? undefined,
+    status: data.status as Transfer['status'],
+    createdAt: data.createdAt as string,
   };
 }
 

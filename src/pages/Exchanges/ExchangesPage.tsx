@@ -17,19 +17,11 @@ import exchangeManagementService from '@/services/exchangeManagementService';
 import type { Exchange } from '@/types/celina3';
 
 export default function ExchangesPage() {
-  const { user } = useAuth();
+  const { isAdmin } = useAuth();
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [togglingAcronym, setTogglingAcronym] = useState<string | null>(null);
-
-  const role = String(
-    (user as { role?: string; userType?: string } | null)?.role ??
-    (user as { role?: string; userType?: string } | null)?.userType ??
-    ''
-  ).toUpperCase();
-
-  const isAdmin = role === 'ADMIN';
 
   useEffect(() => {
     const load = async () => {

@@ -88,69 +88,35 @@ export default function App() {
           <Route path="/loans/apply" element={<LoanApplicationPage />} />
           <Route path="/margin-accounts" element={<MarginAccountsPage />} />
 
-          {/* Admin rute - Celina 1 (zaposleni CRUD) */}
+          {/* Admin/Employee rute */}
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees" element={<EmployeeListPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees/new" element={<EmployeeCreatePage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees/:id" element={<EmployeeEditPage />} />
-          </Route>
 
-          {/* Employee portal rute - Celina 2 */}
-          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/dashboard" element={<SupervisorDashboardPage />} />
             <Route path="/employee/accounts" element={<AccountsPortalPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/accounts/new" element={<CreateAccountPage />} />
-            <Route path="/employee/create-account" element={<CreateAccountPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/cards" element={<AccountCardsPage />} />
             <Route path="/employee/accounts/:id/cards" element={<AccountCardsPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/cards" element={<AccountCardsPage />} />
+            <Route path="/employee/card-requests" element={<CardRequestsPage />} />
+            <Route path="/employee/account-requests" element={<AccountRequestsPage />} />
             <Route path="/employee/clients" element={<ClientsPortalPage />} />
             <Route path="/employee/clients/:id" element={<ClientsPortalPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/account-requests" element={<AccountRequestsPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/card-requests" element={<CardRequestsPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/loan-requests" element={<LoanRequestsPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/loans" element={<AllLoansPage />} />
+            <Route path="/employee/orders" element={<OrdersListPage />} />
+            <Route path="/employee/actuaries" element={<ActuaryManagementPage />} />
+            <Route path="/employee/tax" element={<TaxPortalPage />} />
+            <Route path="/employee/exchanges" element={<ExchangesPage />} />
           </Route>
 
-          {/* Celina 3 - Berza rute (aktuari + klijenti sa permisijom) */}
+          {/* Berza */}
           <Route path="/securities" element={<SecuritiesListPage />} />
           <Route path="/securities/:id" element={<SecuritiesDetailsPage />} />
           <Route path="/orders/new" element={<CreateOrderPage />} />
           <Route path="/orders/my" element={<MyOrdersPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
-
-          {/* Celina 3 - Supervizor/Admin portali */}
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/orders" element={<OrdersListPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/dashboard" element={<SupervisorDashboardPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/actuaries" element={<ActuaryManagementPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/tax" element={<TaxPortalPage />} />
-          </Route>
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route path="/employee/exchanges" element={<ExchangesPage />} />
-          </Route>
         </Route>
       </Route>
 

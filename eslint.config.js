@@ -22,7 +22,7 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        { allowConstantExport: true, allowExportNames: ['useAuth', 'useTheme', 'AuthProvider', 'ThemeProvider', 'Permission', 'badgeVariants', 'buttonVariants'] },
       ],
       '@typescript-eslint/no-unused-vars': [
         'error',

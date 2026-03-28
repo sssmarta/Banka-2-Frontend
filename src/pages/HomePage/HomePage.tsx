@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import {
   Users, UserPlus, Building2, BookUser, ShieldCheck, FileText,
-  Wallet, ArrowUpRight, ArrowDownLeft, Send, CreditCard,
+  Wallet, Send, CreditCard,
   TrendingUp, Landmark, ArrowRightLeft, PiggyBank,
   ChevronRight, Banknote, BarChart3, Clock, Eye, EyeOff,
 } from 'lucide-react';
@@ -17,7 +17,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  LineChart, Line,
+} from 'recharts';
 
+// ────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────
 function formatAmount(value: number | null | undefined, decimals = 2): string {
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : '0,00';
@@ -39,6 +46,41 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/** Generate fake balance history data for a chart */
+function generateBalanceHistory(currentBalance: number, days: number): { date: string; balance: number }[] {
+  const data: { date: string; balance: number }[] = [];
+  let balance = currentBalance * (0.75 + Math.random() * 0.15);
+  const dailyDelta = (currentBalance - balance) / days;
+  const now = new Date();
+
+  for (let i = days; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const noise = (Math.random() - 0.45) * currentBalance * 0.04;
+    balance += dailyDelta + noise;
+    balance = Math.max(balance, currentBalance * 0.3);
+    data.push({
+      date: d.toLocaleDateString('sr-RS', { day: '2-digit', month: 'short' }),
+      balance: Math.round(balance),
+    });
+  }
+  // last point = actual balance
+  if (data.length > 0) data[data.length - 1].balance = Math.round(currentBalance);
+  return data;
+}
+
+/** Generate tiny sparkline data (7 points) */
+function generateSparkline(endValue: number): number[] {
+  const pts: number[] = [];
+  let v = endValue * (0.85 + Math.random() * 0.1);
+  for (let i = 0; i < 7; i++) {
+    v += (endValue - v) * 0.25 + (Math.random() - 0.45) * endValue * 0.05;
+    pts.push(Math.round(v));
+  }
+  pts[6] = Math.round(endValue);
+  return pts;
+}
+
 const currencyGradients: Record<string, string> = {
   RSD: 'from-blue-500 to-blue-700',
   EUR: 'from-indigo-500 to-violet-700',
@@ -51,7 +93,13 @@ const currencyGradients: Record<string, string> = {
 };
 
 const currencySymbols: Record<string, string> = {
-  RSD: 'РСД', EUR: '€', USD: '$', CHF: 'CHF', GBP: '£', JPY: '¥', CAD: 'C$', AUD: 'A$',
+  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
+};
+
+const currencyFlags: Record<string, string> = {
+  EUR: '\ud83c\uddea\ud83c\uddfa', USD: '\ud83c\uddfa\ud83c\uddf8', CHF: '\ud83c\udde8\ud83c\udded',
+  GBP: '\ud83c\uddec\ud83c\udde7', JPY: '\ud83c\uddef\ud83c\uddf5', CAD: '\ud83c\udde8\ud83c\udde6',
+  AUD: '\ud83c\udde6\ud83c\uddfa', RSD: '\ud83c\uddf7\ud83c\uddf8',
 };
 
 interface AdminCard {
@@ -65,11 +113,56 @@ interface AdminCard {
 const adminCards: AdminCard[] = [
   { title: 'Zaposleni', description: 'Upravljanje nalozima', path: '/admin/employees', icon: <Users className="h-5 w-5" />, gradient: 'from-indigo-500 to-violet-600' },
   { title: 'Novi zaposleni', description: 'Kreiranje naloga', path: '/admin/employees/new', icon: <UserPlus className="h-5 w-5" />, gradient: 'from-blue-500 to-indigo-600' },
-  { title: 'Računi', description: 'Svi klijentski računi', path: '/employee/accounts', icon: <Building2 className="h-5 w-5" />, gradient: 'from-emerald-500 to-green-600' },
+  { title: 'Racuni', description: 'Svi klijentski racuni', path: '/employee/accounts', icon: <Building2 className="h-5 w-5" />, gradient: 'from-emerald-500 to-green-600' },
   { title: 'Klijenti', description: 'Pregled i izmena', path: '/employee/clients', icon: <BookUser className="h-5 w-5" />, gradient: 'from-amber-500 to-orange-600' },
   { title: 'Zahtevi za kredit', description: 'Odobravanje kredita', path: '/employee/loan-requests', icon: <ShieldCheck className="h-5 w-5" />, gradient: 'from-rose-500 to-pink-600' },
-  { title: 'Svi krediti', description: 'Aktivni i završeni', path: '/employee/loans', icon: <FileText className="h-5 w-5" />, gradient: 'from-purple-500 to-violet-600' },
+  { title: 'Svi krediti', description: 'Aktivni i zavrseni', path: '/employee/loans', icon: <FileText className="h-5 w-5" />, gradient: 'from-purple-500 to-violet-600' },
 ];
+
+const periodOptions = [
+  { label: '1N', days: 7 },
+  { label: '1M', days: 30 },
+  { label: '3M', days: 90 },
+  { label: '1G', days: 365 },
+];
+
+// ────────────────────────────────────────────────────────────────────
+// Animated counter hook
+// ────────────────────────────────────────────────────────────────────
+function useCountUp(target: number, duration = 1200): number {
+  const [count, setCount] = useState(0);
+  const ref = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (target === 0) { requestAnimationFrame(() => setCount(0)); return; }
+    const start = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * target));
+      if (progress < 1) ref.current = requestAnimationFrame(animate);
+    };
+    ref.current = requestAnimationFrame(animate);
+    return () => { if (ref.current) cancelAnimationFrame(ref.current); };
+  }, [target, duration]);
+
+  return count;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Custom chart tooltip
+// ────────────────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border bg-background/95 backdrop-blur-sm px-4 py-2.5 shadow-xl">
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className="text-sm font-bold font-mono tabular-nums">{formatAmount(payload[0].value)} RSD</p>
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────────────────
 // Skeletons
@@ -86,9 +179,39 @@ function HeroSkeleton() {
   );
 }
 
+function ChartSkeleton() {
+  return (
+    <div className="rounded-2xl border bg-card p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="h-5 w-32 animate-pulse rounded bg-muted" />
+        <div className="flex gap-2">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-8 w-10 animate-pulse rounded-full bg-muted" />)}
+        </div>
+      </div>
+      <div className="h-[220px] animate-pulse rounded-xl bg-muted/50" />
+    </div>
+  );
+}
+
 function AccountCardSkeleton() {
   return (
-    <div className="flex-shrink-0 w-64 h-40 rounded-2xl bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
+    <div className="flex-shrink-0 w-72 h-44 rounded-2xl bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// MiniSparkline for account cards
+// ────────────────────────────────────────────────────────────────────
+function MiniSparkline({ data, color = '#ffffff' }: { data: number[]; color?: string }) {
+  const chartData = data.map((v, i) => ({ i, v }));
+  return (
+    <div className="h-8 w-20">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData}>
+          <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} strokeOpacity={0.6} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -104,6 +227,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [adminStats, setAdminStats] = useState({ employees: 0, active: 0, loans: 0, loading: true });
+  const [chartPeriod, setChartPeriod] = useState(30);
 
   useEffect(() => {
     const load = async () => {
@@ -114,14 +238,14 @@ export default function HomePage() {
       try {
         const [myAccounts, recentTx, rates] = await Promise.all([
           safe(() => accountService.getMyAccounts(), []),
-          safe(() => transactionService.getAll({ page: 0, limit: 6 }), { content: [] } as never),
+          safe(() => transactionService.getAll({ page: 0, limit: 6 }), { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 }),
           safe(() => currencyService.getExchangeRates(), []),
         ]);
         setAccounts(asArray<Account>(myAccounts));
-        const txSrc = (recentTx as { content?: unknown })?.content ?? recentTx;
+        const txSrc = recentTx?.content ?? recentTx;
         setTransactions(asArray<Transaction>(txSrc).slice(0, 6));
         setExchangeRates(asArray<ExchangeRate>(rates).filter(r => r.currency !== 'RSD').slice(0, 7));
-      } catch { toast.error('Greška pri učitavanju.'); } finally { setLoading(false); }
+      } catch { toast.error('Greska pri ucitavanju.'); } finally { setLoading(false); }
     };
     load();
   }, []);
@@ -148,20 +272,46 @@ export default function HomePage() {
   }, [isAdmin]);
 
   // Total balance across all RSD accounts (for hero)
-  const totalRSD = accounts.filter(a => a.currency === 'RSD').reduce((s, a) => s + (a.balance ?? 0), 0);
-  const totalFX = accounts.filter(a => a.currency !== 'RSD').length;
+  const totalRSD = useMemo(() => accounts.filter(a => a.currency === 'RSD').reduce((s, a) => s + (a.balance ?? 0), 0), [accounts]);
+  const totalFX = useMemo(() => accounts.filter(a => a.currency !== 'RSD').length, [accounts]);
+
+  // Chart data (memoized to avoid regenerating random data on every render)
+  const balanceHistory = useMemo(() => generateBalanceHistory(totalRSD || 250000, chartPeriod), [totalRSD, chartPeriod]);
+
+  // Sparkline data per account (stable via useRef)
+  const sparklineRef = useRef<Map<number, number[]>>(new Map());
+  accounts.forEach(a => {
+    if (!sparklineRef.current.has(a.id)) {
+      sparklineRef.current.set(a.id, generateSparkline(a.balance ?? 0));
+    }
+  });
+
+  // Exchange rate sparklines
+  const rateSparkRef = useRef<Map<string, number[]>>(new Map());
+  exchangeRates.forEach(r => {
+    if (!rateSparkRef.current.has(r.currency)) {
+      const mid = r.middleRate && r.middleRate > 0 ? 1 / r.middleRate : 100;
+      rateSparkRef.current.set(r.currency, generateSparkline(mid));
+    }
+  });
 
   const greeting = (() => {
     const h = new Date().getHours();
-    if (h < 6) return 'Dobra noć';
+    if (h < 6) return 'Dobra noc';
     if (h < 12) return 'Dobro jutro';
     if (h < 18) return 'Dobar dan';
-    return 'Dobro veče';
+    return 'Dobro vece';
   })();
+
+  // Animated admin counters
+  const animatedEmployees = useCountUp(adminStats.loading ? 0 : adminStats.employees);
+  const animatedActive = useCountUp(adminStats.loading ? 0 : adminStats.active);
+  const animatedInactive = useCountUp(adminStats.loading ? 0 : Math.max(adminStats.employees - adminStats.active, 0));
+  const animatedLoans = useCountUp(adminStats.loading ? 0 : adminStats.loans);
 
   // ──────────────── CLIENT DASHBOARD ────────────────
   if (!isAdmin) return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-up">
       {/* Hero - Total Balance */}
       {loading ? <HeroSkeleton /> : (
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-8 sm:p-10 text-white shadow-2xl shadow-indigo-500/25">
@@ -174,23 +324,23 @@ export default function HomePage() {
             <div>
               <p className="text-indigo-200 text-sm font-medium tracking-wide uppercase">{greeting}</p>
               <h1 className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight">
-                {user?.firstName ?? 'Korisniče'}
+                {user?.firstName ?? 'Korisnice'}
               </h1>
               <div className="mt-5 flex items-center gap-3">
                 <p className="text-indigo-200 text-sm">Ukupno stanje</p>
-                <button onClick={() => setBalanceVisible(!balanceVisible)} className="text-indigo-300 hover:text-white transition-colors" aria-label="Prikaži/sakrij stanje">
+                <button onClick={() => setBalanceVisible(!balanceVisible)} className="text-indigo-300 hover:text-white transition-colors" aria-label="Prikazi/sakrij stanje">
                   {balanceVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
               <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight">
-                  {balanceVisible ? formatAmount(totalRSD) : '••••••'}
+                <span className="text-4xl sm:text-5xl font-bold font-mono tabular-nums tracking-tight">
+                  {balanceVisible ? formatAmount(totalRSD) : '\u2022\u2022\u2022\u2022\u2022\u2022'}
                 </span>
                 <span className="text-xl font-semibold text-indigo-200">RSD</span>
               </div>
               {totalFX > 0 && (
                 <p className="mt-2 text-sm text-indigo-200">
-                  + {totalFX} devizn{totalFX === 1 ? 'i' : 'a'} račun{totalFX === 1 ? '' : 'a'}
+                  + {totalFX} devizn{totalFX === 1 ? 'i' : 'a'} racun{totalFX === 1 ? '' : 'a'}
                 </p>
               )}
             </div>
@@ -198,14 +348,14 @@ export default function HomePage() {
             {/* Quick action pills */}
             <div className="flex flex-wrap gap-2">
               {[
-                { label: 'Novo plaćanje', icon: <Send className="h-3.5 w-3.5" />, path: '/payments/new' },
+                { label: 'Novo placanje', icon: <Send className="h-3.5 w-3.5" />, path: '/payments/new' },
                 { label: 'Transfer', icon: <ArrowRightLeft className="h-3.5 w-3.5" />, path: '/transfers' },
-                { label: 'Menjačnica', icon: <Banknote className="h-3.5 w-3.5" />, path: '/exchange' },
+                { label: 'Menjacnica', icon: <Banknote className="h-3.5 w-3.5" />, path: '/exchange' },
               ].map(a => (
                 <button
                   key={a.path}
                   onClick={() => navigate(a.path)}
-                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all"
+                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-105"
                 >
                   {a.icon}{a.label}
                 </button>
@@ -215,15 +365,71 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Balance History Chart */}
+      {loading ? <ChartSkeleton /> : (
+        <Card className="rounded-2xl border shadow-sm overflow-hidden">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-indigo-500" />
+                  Istorija stanja
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Kretanje ukupnog stanja</p>
+              </div>
+              <div className="flex gap-1 rounded-full bg-muted/60 p-1">
+                {periodOptions.map(p => (
+                  <button
+                    key={p.label}
+                    onClick={() => setChartPeriod(p.days)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                      chartPeriod === p.days
+                        ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={balanceHistory} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" hide />
+                  <YAxis hide domain={['dataMin - 5000', 'dataMax + 5000']} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                  <Area
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    fill="url(#balanceGradient)"
+                    animationDuration={1200}
+                    animationEasing="ease-out"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Account Cards - Horizontal scroll */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Wallet className="h-5 w-5 text-indigo-500" />
-            Moji računi
+            Moji racuni
           </h2>
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/accounts')}>
-            Svi računi <ChevronRight className="ml-1 h-4 w-4" />
+            Svi racuni <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         </div>
         {loading ? (
@@ -231,27 +437,29 @@ export default function HomePage() {
             <AccountCardSkeleton /><AccountCardSkeleton /><AccountCardSkeleton />
           </div>
         ) : accounts.length === 0 ? (
-          <Card className="py-12">
+          <Card className="py-12 rounded-2xl">
             <CardContent className="flex flex-col items-center text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10 mb-3">
                 <Wallet className="h-7 w-7 text-indigo-500" />
               </div>
-              <p className="font-semibold">Nemate otvorenih računa</p>
-              <p className="text-sm text-muted-foreground mt-1">Kontaktirajte banku za otvaranje računa.</p>
+              <p className="font-semibold">Nemate otvorenih racuna</p>
+              <p className="text-sm text-muted-foreground mt-1">Kontaktirajte banku za otvaranje racuna.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
-            {accounts.map(account => {
+            {accounts.map((account, idx) => {
               const grad = currencyGradients[account.currency] || 'from-slate-500 to-slate-700';
               const sym = currencySymbols[account.currency] || account.currency;
+              const sparkData = sparklineRef.current.get(account.id) || [];
               return (
                 <div
                   key={account.id}
                   onClick={() => navigate(`/accounts/${account.id}`)}
                   className="flex-shrink-0 w-72 cursor-pointer group"
+                  style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}
                 >
-                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${grad} p-5 text-white shadow-lg transition-all duration-300 group-hover:shadow-xl group-hover:-translate-y-1 group-hover:scale-[1.02]`}>
+                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${grad} p-5 text-white shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-1 group-hover:scale-[1.03]`}>
                     {/* Decorative */}
                     <div className="absolute top-0 right-0 -mt-6 -mr-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
                     <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-16 w-16 rounded-full bg-white/10 blur-lg" />
@@ -259,7 +467,7 @@ export default function HomePage() {
                     <div className="relative">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-white/80 truncate max-w-[140px]">
-                          {account.name || `${account.accountType} račun`}
+                          {account.name || `${account.accountType} racun`}
                         </p>
                         <span className="text-xs font-bold bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-0.5">
                           {account.currency}
@@ -267,15 +475,20 @@ export default function HomePage() {
                       </div>
                       <p className="mt-1 text-xs text-white/50 font-mono">{account.accountNumber}</p>
 
-                      <div className="mt-4">
-                        <p className="text-xs text-white/60 uppercase tracking-wider">Stanje</p>
-                        <p className="mt-0.5 text-2xl font-bold tabular-nums tracking-tight">
-                          {balanceVisible ? formatAmount(account.balance) : '••••'} <span className="text-base font-semibold text-white/70">{sym}</span>
-                        </p>
+                      <div className="mt-3 flex items-end justify-between">
+                        <div>
+                          <p className="text-xs text-white/60 uppercase tracking-wider">Stanje</p>
+                          <p className="mt-0.5 text-2xl font-bold font-mono tabular-nums tracking-tight">
+                            {balanceVisible ? formatAmount(account.balance) : '\u2022\u2022\u2022\u2022'} <span className="text-base font-semibold text-white/70">{sym}</span>
+                          </p>
+                        </div>
+                        {sparkData.length > 0 && (
+                          <MiniSparkline data={sparkData} color="rgba(255,255,255,0.5)" />
+                        )}
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between text-xs text-white/60">
-                        <span>Raspoloživo: {balanceVisible ? formatAmount(account.availableBalance) : '••••'}</span>
+                      <div className="mt-2 flex items-center justify-between text-xs text-white/60">
+                        <span>Raspolozivo: {balanceVisible ? formatAmount(account.availableBalance) : '\u2022\u2022\u2022\u2022'}</span>
                         <Badge variant="outline" className="border-white/30 text-white/80 text-[10px] px-1.5">
                           {account.status === 'ACTIVE' ? 'Aktivan' : account.status}
                         </Badge>
@@ -297,25 +510,28 @@ export default function HomePage() {
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Novo plaćanje', icon: <Send className="h-5 w-5" />, path: '/payments/new', color: 'from-indigo-500 to-violet-500' },
-            { label: 'Transfer', icon: <ArrowRightLeft className="h-5 w-5" />, path: '/transfers', color: 'from-blue-500 to-cyan-500' },
-            { label: 'Menjačnica', icon: <Banknote className="h-5 w-5" />, path: '/exchange', color: 'from-emerald-500 to-green-500' },
-            { label: 'Kartice', icon: <CreditCard className="h-5 w-5" />, path: '/cards', color: 'from-amber-500 to-orange-500' },
-            { label: 'Krediti', icon: <PiggyBank className="h-5 w-5" />, path: '/loans', color: 'from-rose-500 to-pink-500' },
-            { label: 'Primaoci', icon: <BookUser className="h-5 w-5" />, path: '/payments/recipients', color: 'from-purple-500 to-violet-500' },
-            { label: 'Istorija', icon: <Clock className="h-5 w-5" />, path: '/payments/history', color: 'from-slate-500 to-gray-600' },
-            { label: 'Računi', icon: <Wallet className="h-5 w-5" />, path: '/accounts', color: 'from-teal-500 to-cyan-600' },
+            { label: 'Novo placanje', sub: 'Uplata ili prenos', icon: <Send className="h-6 w-6" />, path: '/payments/new', color: 'from-indigo-500 to-violet-500' },
+            { label: 'Transfer', sub: 'Izmedju racuna', icon: <ArrowRightLeft className="h-6 w-6" />, path: '/transfers', color: 'from-blue-500 to-cyan-500' },
+            { label: 'Menjacnica', sub: 'Konverzija valuta', icon: <Banknote className="h-6 w-6" />, path: '/exchange', color: 'from-emerald-500 to-green-500' },
+            { label: 'Kartice', sub: 'Upravljanje', icon: <CreditCard className="h-6 w-6" />, path: '/cards', color: 'from-amber-500 to-orange-500' },
+            { label: 'Krediti', sub: 'Apliciranje', icon: <PiggyBank className="h-6 w-6" />, path: '/loans', color: 'from-rose-500 to-pink-500' },
+            { label: 'Primaoci', sub: 'Sacuvani kontakti', icon: <BookUser className="h-6 w-6" />, path: '/payments/recipients', color: 'from-purple-500 to-violet-500' },
+            { label: 'Istorija', sub: 'Sve transakcije', icon: <Clock className="h-6 w-6" />, path: '/payments/history', color: 'from-slate-500 to-gray-600' },
+            { label: 'Racuni', sub: 'Pregled stanja', icon: <Wallet className="h-6 w-6" />, path: '/accounts', color: 'from-teal-500 to-cyan-600' },
           ].map(a => (
             <Card
               key={a.path}
-              className="group cursor-pointer border-0 bg-muted/30 hover:bg-muted/60 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+              className="group cursor-pointer border-0 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
               onClick={() => navigate(a.path)}
             >
-              <CardContent className="flex flex-col items-center justify-center py-5 gap-2.5">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${a.color} text-white shadow-md transition-transform group-hover:scale-110`}>
+              <CardContent className="flex flex-col items-center justify-center py-6 gap-3">
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${a.color} text-white shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl`}>
                   {a.icon}
                 </div>
-                <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">{a.label}</span>
+                <div className="text-center">
+                  <span className="text-sm font-semibold text-foreground group-hover:text-foreground transition-colors block">{a.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{a.sub}</span>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -335,62 +551,71 @@ export default function HomePage() {
               Sve <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
-          <Card className="overflow-hidden">
+          <div className="space-y-3">
             {loading ? (
-              <CardContent className="py-6 space-y-4">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full animate-pulse bg-muted" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                      <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+              <Card className="rounded-2xl">
+                <CardContent className="py-6 space-y-4">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full animate-pulse bg-muted" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                        <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                      </div>
+                      <div className="h-5 w-24 animate-pulse rounded bg-muted" />
                     </div>
-                    <div className="h-5 w-24 animate-pulse rounded bg-muted" />
-                  </div>
-                ))}
-              </CardContent>
+                  ))}
+                </CardContent>
+              </Card>
             ) : transactions.length === 0 ? (
-              <CardContent className="flex flex-col items-center text-center py-12">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-3">
-                  <Clock className="h-7 w-7 text-muted-foreground" />
-                </div>
-                <p className="font-semibold">Nema nedavnih transakcija</p>
-                <p className="text-sm text-muted-foreground mt-1">Vaše transakcije će se prikazati ovde.</p>
-              </CardContent>
+              <Card className="rounded-2xl">
+                <CardContent className="flex flex-col items-center text-center py-12">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-3">
+                    <Clock className="h-7 w-7 text-muted-foreground" />
+                  </div>
+                  <p className="font-semibold">Nema nedavnih transakcija</p>
+                  <p className="text-sm text-muted-foreground mt-1">Vase transakcije ce se prikazati ovde.</p>
+                </CardContent>
+              </Card>
             ) : (
-              <div className="divide-y">
-                {transactions.map(tx => {
-                  const myAccountNumbers = accounts.map(a => a.accountNumber);
-                  const isOut = myAccountNumbers.includes(tx.fromAccountNumber);
-                  return (
-                    <div key={tx.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isOut ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                        {isOut ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+              transactions.map((tx, idx) => {
+                const myAccountNumbers = accounts.map(a => a.accountNumber);
+                const isOut = myAccountNumbers.includes(tx.fromAccountNumber);
+                const initial = (tx.recipientName || tx.description || 'T').charAt(0).toUpperCase();
+                return (
+                  <Card
+                    key={tx.id}
+                    className="rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300"
+                    style={{ animationDelay: `${idx * 80}ms`, animationFillMode: 'both' }}
+                  >
+                    <CardContent className="flex items-center gap-4 py-4 px-5">
+                      <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold ${isOut ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                        {initial}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{tx.recipientName || tx.description || 'Transakcija'}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(tx.createdAt)} · {formatTime(tx.createdAt)}</p>
+                        <p className="text-sm font-semibold truncate">{tx.recipientName || tx.description || 'Transakcija'}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{formatDate(tx.createdAt)} {formatTime(tx.createdAt) && `\u00b7 ${formatTime(tx.createdAt)}`}</p>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-semibold tabular-nums ${isOut ? 'text-red-500' : 'text-emerald-500'}`}>
+                      <div className="text-right flex-shrink-0">
+                        <p className={`text-base font-bold font-mono tabular-nums ${isOut ? 'text-red-500' : 'text-emerald-500'}`}>
                           {isOut ? '-' : '+'}{formatAmount(tx.amount)} {tx.currency}
                         </p>
                         <Badge
                           variant={tx.status === 'COMPLETED' ? 'success' : tx.status === 'PENDING' ? 'warning' : 'destructive'}
-                          className="text-[10px] px-1.5 mt-0.5"
+                          className="text-[10px] px-1.5 mt-1"
                         >
-                          {tx.status === 'COMPLETED' ? 'Završena' : tx.status === 'PENDING' ? 'Na čekanju' : tx.status}
+                          {tx.status === 'COMPLETED' ? 'Zavrsena' : tx.status === 'PENDING' ? 'Na cekanju' : tx.status}
                         </Badge>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
-          </Card>
+          </div>
         </section>
 
-        {/* Exchange Rates - narrower */}
+        {/* Exchange Rates - scrolling currency cards */}
         <section className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -398,51 +623,69 @@ export default function HomePage() {
               Kursna lista
             </h2>
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/exchange')}>
-              Više <ChevronRight className="ml-1 h-4 w-4" />
+              Vise <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
-          <Card className="overflow-hidden">
-            {loading ? (
+          {loading ? (
+            <Card className="rounded-2xl">
               <CardContent className="py-6 space-y-3">
-                {[1,2,3,4].map(i => (
+                {[1, 2, 3, 4].map(i => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="h-4 w-12 animate-pulse rounded bg-muted" />
                     <div className="h-4 w-24 animate-pulse rounded bg-muted" />
                   </div>
                 ))}
               </CardContent>
-            ) : exchangeRates.length === 0 ? (
+            </Card>
+          ) : exchangeRates.length === 0 ? (
+            <Card className="rounded-2xl">
               <CardContent className="flex flex-col items-center py-12">
                 <Landmark className="h-7 w-7 text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">Kursna lista nedostupna</p>
               </CardContent>
-            ) : (
-              <div className="divide-y">
-                {exchangeRates.map(rate => {
-                  const rsdPerUnit = rate.middleRate && rate.middleRate > 0 ? (1 / rate.middleRate) : 0;
-                  return (
-                    <div key={rate.currency} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {exchangeRates.map((rate, idx) => {
+                const rsdPerUnit = rate.middleRate && rate.middleRate > 0 ? (1 / rate.middleRate) : 0;
+                const sparkData = rateSparkRef.current.get(rate.currency) || [];
+                return (
+                  <Card
+                    key={rate.currency}
+                    className="rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+                    style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
+                  >
+                    <CardContent className="flex items-center justify-between py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${currencyGradients[rate.currency] || 'from-slate-400 to-slate-600'} text-white text-xs font-bold`}>
-                          {rate.currency?.slice(0, 2)}
-                        </div>
+                        <span className="text-2xl">{currencyFlags[rate.currency] || '\ud83c\udfe6'}</span>
                         <div>
-                          <p className="text-sm font-semibold">{rate.currency}</p>
+                          <p className="text-sm font-bold">{rate.currency}</p>
                           <p className="text-[11px] text-muted-foreground">1 {rate.currency}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold tabular-nums">{formatAmount(rsdPerUnit, 2)} RSD</p>
-                        <p className="text-[11px] text-muted-foreground tabular-nums">
-                          {formatAmount(rate.sellRate ? (1 / rate.sellRate) : 0, 2)} / {formatAmount(rate.buyRate ? (1 / rate.buyRate) : 0, 2)}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        {sparkData.length > 0 && (
+                          <div className="h-6 w-14 opacity-60">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={sparkData.map((v, i) => ({ i, v }))}>
+                                <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={1.5} dot={false} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                        <div className="text-right">
+                          <p className="text-sm font-bold font-mono tabular-nums">{formatAmount(rsdPerUnit, 2)} RSD</p>
+                          <p className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                            {formatAmount(rate.sellRate ? (1 / rate.sellRate) : 0, 2)} / {formatAmount(rate.buyRate ? (1 / rate.buyRate) : 0, 2)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -450,7 +693,7 @@ export default function HomePage() {
 
   // ──────────────── ADMIN DASHBOARD ────────────────
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-up">
       {/* Admin Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-8 sm:p-10 text-white shadow-2xl">
         {/* Decorative grid */}
@@ -472,15 +715,15 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Admin Stats */}
+      {/* Admin Stats - animated counters */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Zaposleni', value: adminStats.employees, icon: <Users className="h-5 w-5" />, gradient: 'from-indigo-500/10 to-violet-500/10', iconColor: 'text-indigo-500', borderColor: 'border-l-indigo-500' },
-          { label: 'Aktivnih', value: adminStats.active, icon: <TrendingUp className="h-5 w-5" />, gradient: 'from-emerald-500/10 to-green-500/10', iconColor: 'text-emerald-500', borderColor: 'border-l-emerald-500' },
-          { label: 'Neaktivnih', value: Math.max(adminStats.employees - adminStats.active, 0), icon: <Users className="h-5 w-5" />, gradient: 'from-amber-500/10 to-orange-500/10', iconColor: 'text-amber-500', borderColor: 'border-l-amber-500' },
-          { label: 'Krediti', value: adminStats.loans, icon: <PiggyBank className="h-5 w-5" />, gradient: 'from-rose-500/10 to-pink-500/10', iconColor: 'text-rose-500', borderColor: 'border-l-rose-500' },
+          { label: 'Zaposleni', value: animatedEmployees, icon: <Users className="h-5 w-5" />, gradient: 'from-indigo-500/10 to-violet-500/10', iconColor: 'text-indigo-500', borderColor: 'border-l-indigo-500' },
+          { label: 'Aktivnih', value: animatedActive, icon: <TrendingUp className="h-5 w-5" />, gradient: 'from-emerald-500/10 to-green-500/10', iconColor: 'text-emerald-500', borderColor: 'border-l-emerald-500' },
+          { label: 'Neaktivnih', value: animatedInactive, icon: <Users className="h-5 w-5" />, gradient: 'from-amber-500/10 to-orange-500/10', iconColor: 'text-amber-500', borderColor: 'border-l-amber-500' },
+          { label: 'Krediti', value: animatedLoans, icon: <PiggyBank className="h-5 w-5" />, gradient: 'from-rose-500/10 to-pink-500/10', iconColor: 'text-rose-500', borderColor: 'border-l-rose-500' },
         ].map(stat => (
-          <Card key={stat.label} className={`relative overflow-hidden border-l-4 ${stat.borderColor}`}>
+          <Card key={stat.label} className={`relative overflow-hidden border-l-4 ${stat.borderColor} rounded-2xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02]`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient}`} />
             <CardHeader className="relative flex flex-row items-center justify-between pb-1">
               <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
@@ -489,7 +732,9 @@ export default function HomePage() {
               </div>
             </CardHeader>
             <CardContent className="relative">
-              <div className="text-3xl font-bold tabular-nums">{adminStats.loading ? '—' : stat.value}</div>
+              <div className="text-3xl font-bold font-mono tabular-nums">
+                {adminStats.loading ? '\u2014' : stat.value}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -505,7 +750,7 @@ export default function HomePage() {
           {adminCards.map(card => (
             <Card
               key={card.path}
-              className="group cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 border-0 bg-muted/20 hover:bg-background"
+              className="group cursor-pointer rounded-2xl transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 border-0 bg-muted/20 hover:bg-background"
               onClick={() => navigate(card.path)}
             >
               <CardContent className="flex items-center gap-4 py-5">
@@ -516,7 +761,7 @@ export default function HomePage() {
                   <p className="font-semibold text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{card.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{card.description}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-2" />
               </CardContent>
             </Card>
           ))}

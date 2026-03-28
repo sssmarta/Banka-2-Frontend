@@ -66,7 +66,7 @@ const orderService = {
 
   /**
    * PATCH /orders/{id}/decline
-   * Korisnik otkazuje sopstveni order.
+   * Korisnik otkazuje sopstveni order (koristi isti endpoint kao decline).
    */
   cancelOrder: async (id: number): Promise<Order> => {
     const response = await api.patch(`/orders/${id}/decline`);

@@ -42,7 +42,6 @@ export default function TransferHistoryPage() {
   const [dateTo, setDateTo] = useState('');
 
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
 
   const resetFilters = () => {
@@ -70,13 +69,12 @@ export default function TransferHistoryPage() {
     const loadTransfers = async () => {
       setLoading(true);
       try {
-        const transfers = await transactionService.getTransfers({
+        const data = await transactionService.getTransfers({
           accountNumber: accountNumber || undefined,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
         });
-        setTransfers(asArray<Transfer>(transfers));
-        setTotalPages(1);
+        setTransfers(asArray<Transfer>(data));
       } catch {
         toast.error('Neuspesno ucitavanje istorije transfera.');
         setTransfers([]);
@@ -100,11 +98,7 @@ export default function TransferHistoryPage() {
     });
   }, [transfers]);
 
-  const computedTotalPages = Math.max(1, Math.ceil(sortedTransfers.length / limit));
-
-  useEffect(() => {
-    setTotalPages(computedTotalPages);
-  }, [computedTotalPages]);
+  const totalPages = Math.max(1, Math.ceil(sortedTransfers.length / limit));
 
   const paginatedTransfers = useMemo(() => {
     const start = page * limit;

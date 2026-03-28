@@ -138,21 +138,6 @@ export interface CompanyInfo {
   address?: string;
 }
 
-export interface BusinessAccount extends Account {
-  firm?: Firm;
-}
-
-export interface Firm {
-  id?: number;
-  companyName: string;
-  registrationNumber: string;    // Maticni broj firme
-  taxId: string;                 // PIB
-  activityCode: string;          // Sifra delatnosti (format xx.xx)
-  address?: string;
-  city?: string;
-  country?: string;
-}
-
 export interface Transaction {
   id: number;
   fromAccountNumber: string;
@@ -206,17 +191,6 @@ export interface Card {
   limit?: number;                // FE legacy
   cardLimit?: number;            // Backend polje za limit
   createdAt: string;
-}
-
-export interface AuthorizedPerson {
-  id: number;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  gender: string;
-  email: string;
-  phoneNumber: string;
-  address: string;
 }
 
 export interface ExchangeRate {
@@ -400,5 +374,3 @@ export interface VerificationRequest {
   transactionId: number;
   code: string;
 }
-
-

@@ -46,9 +46,7 @@ function formatDateTime(value: string | null | undefined): string {
   return `${date.toLocaleDateString('sr-RS')} ${date.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-// TODO: Backend treba da pruži settlementDate na Order entitetu
-// Za sada uvek vraća false — kad backend doda polje, ovde treba proveriti
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// TODO: Implementirati kada backend doda settlementDate na Order entitet
 function isSettlementDatePassed(_order: Order): boolean {
   return false;
 }
@@ -133,9 +131,9 @@ export default function OrdersListPage() {
   const handleConfirmAction = () => {
     if (!confirmAction) return;
     if (confirmAction.type === 'approve') {
-      handleApprove(confirmAction.id);
+      void handleApprove(confirmAction.id);
     } else {
-      handleDecline(confirmAction.id);
+      void handleDecline(confirmAction.id);
     }
   };
 

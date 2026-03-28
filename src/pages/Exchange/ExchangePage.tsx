@@ -3,17 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { RefreshCw, Inbox, ArrowRightLeft } from 'lucide-react';
+import { RefreshCw, Inbox, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { currencyService } from '@/services/currencyService';
 import type { ExchangeRate } from '@/types/celina2';
 import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas.celina2';
+import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 
 const currencyColors: Record<string, string> = {
   RSD: 'text-blue-600 dark:text-blue-400',
@@ -26,25 +24,42 @@ const currencyColors: Record<string, string> = {
   AUD: 'text-teal-600 dark:text-teal-400',
 };
 
+const currencyBorders: Record<string, string> = {
+  RSD: 'border-l-blue-500',
+  EUR: 'border-l-indigo-500',
+  USD: 'border-l-green-500',
+  CHF: 'border-l-red-500',
+  GBP: 'border-l-purple-500',
+  JPY: 'border-l-orange-500',
+  CAD: 'border-l-rose-500',
+  AUD: 'border-l-teal-500',
+};
+
+const currencyFlags: Record<string, string> = {
+  RSD: 'RS',
+  EUR: 'EU',
+  USD: 'US',
+  CHF: 'CH',
+  GBP: 'GB',
+  JPY: 'JP',
+  CAD: 'CA',
+  AUD: 'AU',
+};
+
+const currencyNames: Record<string, string> = {
+  RSD: 'Srpski dinar',
+  EUR: 'Evro',
+  USD: 'Americki dolar',
+  CHF: 'Svajcarski franak',
+  GBP: 'Britanska funta',
+  JPY: 'Japanski jen',
+  CAD: 'Kanadski dolar',
+  AUD: 'Australijski dolar',
+};
+
 const SUPPORTED_CURRENCIES = ['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'] as const;
 
-function asArray<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
-}
 
-function formatAmount(value: number | null | undefined, decimals = 2): string {
-  const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '-';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-
-  return date.toLocaleDateString('sr-RS');
-}
 
 function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
   const safeRates = asArray<ExchangeRate>(rates);
@@ -74,6 +89,61 @@ function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
   ).filter((rate): rate is ExchangeRate => Boolean(rate));
 }
 
+// Generate fake sparkline data for visual effect
+function generateSparkline(seed: string): number[] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const points: number[] = [];
+  for (let i = 0; i < 7; i++) {
+    hash = ((hash << 5) - hash) + i;
+    hash |= 0;
+    points.push(30 + (Math.abs(hash) % 40));
+  }
+  return points;
+}
+
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const height = 24;
+  const width = 60;
+  const step = width / (data.length - 1);
+
+  const points = data.map((v, i) => {
+    const x = i * step;
+    const y = height - ((v - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg width={width} height={height} className="opacity-60">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const sparklineColors: Record<string, string> = {
+  RSD: '#3b82f6',
+  EUR: '#6366f1',
+  USD: '#22c55e',
+  CHF: '#ef4444',
+  GBP: '#a855f7',
+  JPY: '#f97316',
+  CAD: '#f43f5e',
+  AUD: '#14b8a6',
+};
+
 export default function ExchangePage() {
   const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +171,7 @@ export default function ExchangePage() {
         const safeRates = normalizeExchangeRates(asArray<ExchangeRate>(exchangeRates));
         setRates(safeRates);
       } catch {
-        toast.error('Neuspešno učitavanje kursne liste.');
+        toast.error('Neuspesno ucitavanje kursne liste.');
         setRates([]);
       } finally {
         setLoading(false);
@@ -140,10 +210,11 @@ export default function ExchangePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
-          <RefreshCw className="h-5 w-5" />
+    <div className="container mx-auto py-8 space-y-8">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <RefreshCw className="h-6 w-6" />
         </div>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Menjacnica</h1>
@@ -151,163 +222,220 @@ export default function ExchangePage() {
         </div>
       </div>
 
-      <section>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-              <CardTitle>Kursna lista</CardTitle>
+      <div className="grid gap-8 lg:grid-cols-5">
+        {/* Left: Exchange rate cards */}
+        <div className="lg:col-span-3 space-y-6">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <h2 className="text-lg font-semibold">Kursna lista</h2>
+            {rates.length > 0 && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                Azurirano: {formatDate(rates[0]?.date)}
+              </span>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />
+              ))}
             </div>
-          </CardHeader>
-        {loading ? (
-          <CardContent className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="h-4 w-16 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+          ) : rates.length === 0 ? (
+            <Card className="rounded-2xl">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <Inbox className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-muted-foreground">Nema dostupnih kurseva</p>
+                  <p className="text-sm text-muted-foreground mt-1">Pokusajte ponovo kasnije.</p>
                 </div>
-              ))}
-          </CardContent>
-        ) : rates.length === 0 ? (
-          <CardContent>
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="rounded-full bg-muted p-3 mb-3">
-                <Inbox className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="font-medium text-muted-foreground">Nema dostupnih kurseva</p>
-              <p className="text-sm text-muted-foreground mt-1">Pokusajte ponovo kasnije.</p>
-            </div>
-          </CardContent>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Valuta</TableHead>
-                <TableHead className="text-right">Kupovni kurs</TableHead>
-                <TableHead className="text-right">Prodajni kurs</TableHead>
-                <TableHead className="text-right">Srednji kurs</TableHead>
-                <TableHead className="text-right">Datum</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rates.map((rate) => (
-                <TableRow key={rate.currency} className="hover:bg-muted/50 transition-colors">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-muted font-bold text-xs ${currencyColors[rate.currency] || ''}`}>
-                        {rate.currency.slice(0, 2)}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {rates.map((rate) => {
+                const sparkData = generateSparkline(rate.currency);
+                return (
+                  <Card
+                    key={rate.currency}
+                    className={`rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 border-l-4 ${currencyBorders[rate.currency] || 'border-l-gray-500'}`}
+                  >
+                    <CardContent className="py-4 px-5">
+                      <div className="flex items-center gap-4">
+                        {/* Currency icon */}
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-muted font-bold text-sm ${currencyColors[rate.currency] || ''}`}>
+                          {currencyFlags[rate.currency] || rate.currency.slice(0, 2)}
+                        </div>
+
+                        {/* Currency info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold text-lg ${currencyColors[rate.currency] || ''}`}>{rate.currency}</span>
+                            <span className="text-xs text-muted-foreground hidden sm:inline">{currencyNames[rate.currency]}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <MiniSparkline data={sparkData} color={sparklineColors[rate.currency] || '#6366f1'} />
+                          </div>
+                        </div>
+
+                        {/* Rates */}
+                        <div className="grid grid-cols-3 gap-4 text-right shrink-0">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Kupovni</p>
+                            <p className="font-mono tabular-nums text-sm">{formatAmount(rate.buyRate, 4)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Srednji</p>
+                            <p className="font-mono tabular-nums text-sm font-bold">{formatAmount(rate.middleRate, 4)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Prodajni</p>
+                            <p className="font-mono tabular-nums text-sm">{formatAmount(rate.sellRate, 4)}</p>
+                          </div>
+                        </div>
                       </div>
-                      <span className={`font-semibold ${currencyColors[rate.currency] || ''}`}>{rate.currency}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatAmount(rate.buyRate, 4)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatAmount(rate.sellRate, 4)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">{formatAmount(rate.middleRate, 4)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{formatDate(rate.date)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        </Card>
-      </section>
-
-      <section>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-              <CardTitle>Konverzija</CardTitle>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
-          </CardHeader>
-          <CardContent>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)} noValidate>
-              <div className="space-y-2">
-                <Label htmlFor="fromCurrency">Iz valute</Label>
-                <select
-                  id="fromCurrency"
-                  title="Iz valute"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  {...register('fromCurrency')}
+          )}
+        </div>
+
+        {/* Right: Conversion calculator */}
+        <div className="lg:col-span-2">
+          <Card className="rounded-2xl border shadow-sm sticky top-6">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/50">
+                  <TrendingUp className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <CardTitle className="text-base">Kalkulator konverzije</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+                {/* Amount input - large */}
+                <div className="space-y-2">
+                  <Label htmlFor="amount" className="text-xs text-muted-foreground uppercase tracking-wider">Iznos</Label>
+                  <input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    className="w-full text-2xl font-bold font-mono text-center bg-transparent border-0 border-b-2 border-input focus:border-indigo-500 focus:outline-none transition-colors py-3"
+                    {...register('amount', { valueAsNumber: true })}
+                    placeholder="0.00"
+                  />
+                  {errors.amount && <p className="text-sm text-destructive text-center">{errors.amount.message}</p>}
+                </div>
+
+                {/* From currency */}
+                <div className="space-y-2">
+                  <Label htmlFor="fromCurrency" className="text-xs text-muted-foreground uppercase tracking-wider">Iz valute</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <label
+                        key={`from-${currency}`}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          fromCurrency === currency
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 shadow-sm'
+                            : 'border-transparent bg-muted/50 hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          value={currency}
+                          {...register('fromCurrency')}
+                          className="sr-only"
+                        />
+                        <span className={`text-xs font-bold ${fromCurrency === currency ? 'text-indigo-600 dark:text-indigo-400' : 'text-muted-foreground'}`}>
+                          {currency}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Arrow separator */}
+                <div className="flex items-center justify-center py-1">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md">
+                    <ArrowRightLeft className="h-4 w-4" />
+                  </div>
+                </div>
+
+                {/* To currency */}
+                <div className="space-y-2">
+                  <Label htmlFor="toCurrency" className="text-xs text-muted-foreground uppercase tracking-wider">U valutu</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <label
+                        key={`to-${currency}`}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          toCurrency === currency
+                            ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30 shadow-sm'
+                            : 'border-transparent bg-muted/50 hover:bg-muted'
+                        } ${fromCurrency === currency ? 'opacity-40 pointer-events-none' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          value={currency}
+                          {...register('toCurrency')}
+                          className="sr-only"
+                          disabled={fromCurrency === currency}
+                        />
+                        <span className={`text-xs font-bold ${toCurrency === currency ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`}>
+                          {currency}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {errors.toCurrency && (
+                    <p className="text-sm text-destructive">{errors.toCurrency.message}</p>
+                  )}
+                  {fromCurrency === toCurrency && (
+                    <p className="text-sm text-destructive text-center">
+                      Izvorna i ciljna valuta ne mogu biti iste.
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={fromCurrency === toCurrency}
+                  className="w-full h-12 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.01] transition-all duration-200 disabled:opacity-50 disabled:shadow-none disabled:scale-100"
                 >
-                  {SUPPORTED_CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="toCurrency">U valutu</Label>
-                <select
-                  id="toCurrency"
-                  title="U valutu"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  {...register('toCurrency')}
-                >
-                  {SUPPORTED_CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-                {errors.toCurrency && (
-                  <p className="text-sm text-destructive">{errors.toCurrency.message}</p>
-                )}
-                {fromCurrency === toCurrency && (
-                  <p className="text-sm text-destructive">
-                    Izvorna i ciljna valuta ne mogu biti iste.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="amount">Iznos</Label>
-                <input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  {...register('amount', { valueAsNumber: true })}
-                />
-                {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
-              </div>
-
-              {/* Polje za racun uklonjeno - menjacnica je samo informativna */}
-
-              <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
                   <ArrowRightLeft className="mr-2 h-4 w-4" />
                   Konvertuj
                 </Button>
-              </div>
-            </form>
+              </form>
 
-            {result && (
-              <div className="mt-6 rounded-xl border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
-                    <ArrowRightLeft className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              {/* Result */}
+              {result && (
+                <div className="mt-6 rounded-2xl border-0 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white p-6 shadow-lg overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-violet-600/10" />
+                  <div className="relative space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ArrowRightLeft className="h-4 w-4 text-indigo-400" />
+                      <p className="text-xs text-slate-400 uppercase tracking-wider">Rezultat konverzije</p>
+                    </div>
+                    <p className="text-3xl font-bold font-mono tabular-nums">
+                      {formatAmount(result.convertedAmount)}
+                      <span className="text-lg text-slate-400 ml-2">{watch('toCurrency')}</span>
+                    </p>
+                    <div className="pt-2 border-t border-slate-700">
+                      <p className="text-xs text-slate-400">
+                        <span className="font-mono">{watch('amount')}</span> {watch('fromCurrency')} po kursu <span className="font-mono">{formatAmount(result.rate, 4)}</span>
+                      </p>
+                    </div>
                   </div>
-                  <p className="font-semibold text-sm">Rezultat konverzije</p>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                    {formatAmount(result.convertedAmount)} {watch('toCurrency')}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {watch('amount')} {watch('fromCurrency')} po kursu {formatAmount(result.rate, 4)}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

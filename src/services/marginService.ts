@@ -1,9 +1,5 @@
 import api from './api';
 
-/**
- * FIXME: Backend mozda jos nije implementirao ove endpointove.
- */
-
 export interface MarginAccount {
   id: number;
   accountNumber: string;

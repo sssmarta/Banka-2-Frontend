@@ -162,10 +162,9 @@ export default function SecuritiesListPage() {
   };
 
   const tabs: ListingTab[] = isClient ? ['STOCK', 'FUTURES'] : ['STOCK', 'FUTURES', 'FOREX'];
-  const listings = data?.content ?? [];
+  const listings = useMemo(() => data?.content ?? [], [data]);
   const totalPages = data?.totalPages ?? 0;
 
-  // Compute market overview from current listings
   const overview = useMemo(() => {
     if (listings.length === 0) return null;
     const totalVolume = listings.reduce((sum, l) => sum + (l.volume ?? 0), 0);

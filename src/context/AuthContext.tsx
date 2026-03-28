@@ -44,13 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Neispravan token');
     }
 
-    // JWT sadrži: sub (email), role (ADMIN/CLIENT), active
-    // ADMIN role daje ADMIN permisiju za pristup admin stranicama
     const permissions: Permission[] = [];
-    if (payload.role === 'ADMIN') permissions.push(Permission.ADMIN);
-    if (payload.role === 'EMPLOYEE') permissions.push(Permission.ADMIN); // Employee ima iste portale kao admin
+    if (payload.role === 'ADMIN' || payload.role === 'EMPLOYEE') {
+      permissions.push(Permission.ADMIN);
+    }
 
-    // Izvlačimo ime iz email-a (marko.petrovic@banka.rs -> Marko Petrovic)
     const emailName = payload.sub.split('@')[0];
     const nameParts = emailName.split('.');
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -79,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permissions.includes(permission);
   };
 
-  const isAdmin = user?.permissions?.includes(Permission.ADMIN) || user?.role === 'ADMIN' || user?.role === 'EMPLOYEE' ? true : false;
+  const isAdmin = !!(user?.permissions?.includes(Permission.ADMIN) || user?.role === 'ADMIN' || user?.role === 'EMPLOYEE');
 
   return (
     <AuthContext.Provider
@@ -105,4 +103,3 @@ export function useAuth() {
   }
   return context;
 }
-

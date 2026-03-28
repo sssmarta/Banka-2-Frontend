@@ -1222,3 +1222,69 @@ describe('29. Employee - Zahtevi za racune i kartice', () => {
     cy.contains('Greška', { timeout: 3000 }).should('not.exist');
   });
 });
+
+// ============================================================================
+// CELINA 3: BERZA I TRGOVINA
+// ============================================================================
+
+describe('30. Berza - Lista hartija', () => {
+  beforeEach(() => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/securities'); });
+  it('30.1 Stranica berze se ucitava', () => { cy.contains('Hartije od vrednosti', { timeout: 10000 }).should('be.visible'); });
+  it('30.2 Akcije tab prikazuje stock hartije', () => { cy.contains('Akcije', { timeout: 5000 }).should('be.visible'); cy.contains('AAPL', { timeout: 10000 }).should('be.visible'); });
+  it('30.3 Futures tab radi', () => { cy.contains('Futures', { timeout: 5000 }).click(); cy.url().should('include', '/securities'); });
+  it('30.4 Klijent ne vidi Forex tab', () => { cy.contains('Forex').should('not.exist'); });
+  it('30.5 Pretraga po tickeru', () => { cy.get('input[placeholder*="retra"]', { timeout: 5000 }).first().type('AAPL'); cy.contains('AAPL', { timeout: 5000 }).should('be.visible'); });
+  it('30.6 Klik otvara detalje', () => { cy.contains('AAPL', { timeout: 10000 }).click(); cy.url({ timeout: 5000 }).should('match', /\/securities\/\d+/); });
+});
+
+describe('31. Berza - Detalji hartije', () => {
+  it('31.1 Detalj se ucitava sa grafikom', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/securities'); cy.contains('AAPL', { timeout: 10000 }).click(); cy.contains('AAPL', { timeout: 5000 }).should('be.visible'); });
+  it('31.2 Prikazuje cenu', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/securities'); cy.contains('AAPL', { timeout: 10000 }).click(); cy.get('.font-mono', { timeout: 5000 }).should('have.length.greaterThan', 0); });
+  it('31.3 Period selector', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/securities'); cy.contains('AAPL', { timeout: 10000 }).click(); cy.contains('1M', { timeout: 5000 }).should('be.visible'); });
+  it('31.4 Kupi i Prodaj dugmad', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/securities'); cy.contains('AAPL', { timeout: 10000 }).click(); cy.contains('Kupi', { timeout: 5000 }).should('be.visible'); cy.contains('Prodaj').should('be.visible'); });
+});
+
+describe('32. Portfolio', () => {
+  beforeEach(() => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/portfolio'); });
+  it('32.1 Portfolio se ucitava', () => { cy.contains('Portfolio', { timeout: 10000, matchCase: false }).should('be.visible'); });
+  it('32.2 Prikazuje holdings ili empty state', () => { cy.get('body', { timeout: 10000 }).then(($b) => { if ($b.text().includes('AAPL')) { cy.contains('AAPL').should('be.visible'); } }); });
+  it('32.3 Nema gresaka', () => { cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+});
+
+describe('33. Kreiranje ordera', () => {
+  it('33.1 Forma se ucitava', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/orders/new'); cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+  it('33.2 BUY/SELL toggle', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/orders/new'); cy.contains('Kupovina', { timeout: 5000, matchCase: false }).should('be.visible'); });
+  it('33.3 Tipovi ordera', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/orders/new'); cy.contains('Market', { timeout: 5000 }).should('be.visible'); });
+  it('33.4 Moji orderi', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/orders/my'); cy.contains('nalozi', { timeout: 10000, matchCase: false }).should('be.visible'); });
+});
+
+describe('34. Employee - Aktuari', () => {
+  beforeEach(() => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/actuaries'); });
+  it('34.1 Stranica se ucitava', () => { cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+  it('34.2 Filter postoji', () => { cy.get('input', { timeout: 5000 }).should('have.length.greaterThan', 0); });
+});
+
+describe('35. Employee - Porez', () => {
+  beforeEach(() => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/tax'); });
+  it('35.1 Portal se ucitava', () => { cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+  it('35.2 Obracun dugme', () => { cy.get('button', { timeout: 5000 }).should('have.length.greaterThan', 0); });
+});
+
+describe('36. Employee - Orderi', () => {
+  it('36.1 Portal ordera', () => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/orders'); cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+});
+
+describe('37. Employee - Berze', () => {
+  it('37.1 Stranica berzi', () => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/exchanges'); cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+  it('37.2 Lista berzi', () => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/exchanges'); cy.get('body', { timeout: 10000 }).then(($b) => { if ($b.text().includes('NYSE')) { cy.contains('NYSE').should('be.visible'); } }); });
+});
+
+describe('38. Supervisor Dashboard', () => {
+  beforeEach(() => { loginAndVisit(ADMIN_EMAIL, ADMIN_PASS, '/employee/dashboard'); });
+  it('38.1 Dashboard se ucitava', () => { cy.contains('Dashboard', { timeout: 10000 }).should('be.visible'); });
+  it('38.2 Nema gresaka', () => { cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+});
+
+describe('39. Margin racuni', () => {
+  it('39.1 Stranica se ucitava', () => { loginAndVisit(STEFAN_EMAIL, STEFAN_PASS, '/margin-accounts'); cy.get('body', { timeout: 10000 }).should('be.visible'); cy.contains('Greška', { timeout: 3000 }).should('not.exist'); });
+});

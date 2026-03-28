@@ -1,10 +1,6 @@
 import api from './api';
 import type { Exchange } from '../types/celina3';
 
-/**
- * Servis za upravljanje berzama.
- * FIXME: Backend mozda jos nije implementirao ove endpointove.
- */
 const exchangeManagementService = {
   /**
    * GET /exchanges

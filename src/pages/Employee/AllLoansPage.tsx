@@ -1,19 +1,17 @@
 //
 // Ova stranica je dostupna samo zaposlenima.
 // Prikazuje sve kredite u bankarskom sistemu sa filterima.
-// - creditService.getAll(filters) sa paginacijom
-// - Filteri: po tipu kredita, statusu
-// - Tabela: klijent, tip, iznos, mesecna rata, preostali dug, status
-// - Klik za detalje (rate, kamatna stopa, itd.)
-// - Spec: "Svi krediti" iz Celine 2 (employee section)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   FileText,
   Inbox,
   ChevronLeft,
   ChevronRight,
   X,
+  TrendingUp,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
@@ -50,6 +48,17 @@ function statusBadgeVariant(status: LoanStatus): 'success' | 'warning' | 'info' 
   if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
   return 'secondary';
 }
+
+const statusRowBorder: Record<string, string> = {
+  ACTIVE: 'border-l-emerald-500',
+  PENDING: 'border-l-amber-500',
+  APPROVED: 'border-l-blue-500',
+  REJECTED: 'border-l-red-500',
+  LATE: 'border-l-red-500',
+  PAID: 'border-l-gray-400',
+  PAID_OFF: 'border-l-gray-400',
+  CLOSED: 'border-l-gray-300',
+};
 
 function statusLabel(status: LoanStatus): string {
   if (status === 'ACTIVE') return 'Aktivan';
@@ -112,6 +121,22 @@ export default function AllLoansPage() {
     setPage(0);
   }, [loanType, status]);
 
+  // Stats
+  const stats = useMemo(() => {
+    const total = loans.length;
+    const active = loans.filter(l => l.status === 'ACTIVE').length;
+    const late = loans.filter(l => l.status === 'LATE').length;
+    const totalAmount = loans.reduce((sum, l) => sum + (l.amount || 0), 0);
+    return { total, active, late, totalAmount };
+  }, [loans]);
+
+  const statCards = [
+    { label: 'Ukupno kredita', value: stats.total, icon: FileText, iconBg: 'bg-indigo-100 dark:bg-indigo-900/40', iconColor: 'text-indigo-600 dark:text-indigo-400', gradient: 'from-indigo-500 to-violet-600' },
+    { label: 'Aktivni', value: stats.active, icon: CheckCircle2, iconBg: 'bg-emerald-100 dark:bg-emerald-900/40', iconColor: 'text-emerald-600 dark:text-emerald-400', gradient: 'from-emerald-500 to-green-600' },
+    { label: 'Kasnjenje', value: stats.late, icon: AlertTriangle, iconBg: 'bg-red-100 dark:bg-red-900/40', iconColor: 'text-red-600 dark:text-red-400', gradient: 'from-red-500 to-rose-600' },
+    { label: 'Ukupan iznos', value: null, displayValue: `${formatAmount(stats.totalAmount)} RSD`, icon: TrendingUp, iconBg: 'bg-blue-100 dark:bg-blue-900/40', iconColor: 'text-blue-600 dark:text-blue-400', gradient: 'from-blue-500 to-indigo-600' },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -127,8 +152,30 @@ export default function AllLoansPage() {
         </div>
       </div>
 
+      {/* Stats row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <Card key={stat.label} className="rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
+            <div className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="text-2xl font-bold font-mono tabular-nums tracking-tight">
+                    {stat.value !== null ? stat.value : stat.displayValue}
+                  </p>
+                </div>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.iconBg} transition-transform duration-300 group-hover:scale-110`}>
+                  <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+                </div>
+              </div>
+              <div className={`mt-3 h-1 rounded-full bg-gradient-to-r ${stat.gradient} opacity-60`} />
+            </div>
+          </Card>
+        ))}
+      </div>
+
       {/* Filters */}
-      <Card>
+      <Card className="rounded-2xl shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
@@ -144,7 +191,7 @@ export default function AllLoansPage() {
               value={loanType}
               onValueChange={(val) => setLoanType(val as LoanType | 'ALL')}
             >
-              <SelectTrigger id="loan-type-filter">
+              <SelectTrigger id="loan-type-filter" className="h-10">
                 <SelectValue placeholder="Svi tipovi" />
               </SelectTrigger>
               <SelectContent>
@@ -166,7 +213,7 @@ export default function AllLoansPage() {
               value={status}
               onValueChange={(val) => setStatus(val as LoanStatus | 'ALL')}
             >
-              <SelectTrigger id="loan-status-filter">
+              <SelectTrigger id="loan-status-filter" className="h-10">
                 <SelectValue placeholder="Svi statusi" />
               </SelectTrigger>
               <SelectContent>
@@ -186,7 +233,7 @@ export default function AllLoansPage() {
 
       {/* Content */}
       {loading ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -215,7 +262,7 @@ export default function AllLoansPage() {
           </Table>
         </Card>
       ) : asArray<Loan>(loans).length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -229,7 +276,7 @@ export default function AllLoansPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -246,20 +293,20 @@ export default function AllLoansPage() {
               {asArray<Loan>(loans).map((loan) => (
                 <TableRow
                   key={loan.id}
-                  className="cursor-pointer hover:bg-primary/5 transition-colors"
+                  className={`cursor-pointer hover:bg-muted/50 transition-all duration-200 border-l-4 ${statusRowBorder[loan.status] || 'border-l-transparent'} hover:shadow-[inset_0_0_0_1px_rgba(99,102,241,0.1)]`}
                   onClick={() => setSelectedLoan(loan)}
                 >
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm tabular-nums">
                     {loan.loanNumber || loan.id}
                   </TableCell>
-                  <TableCell>{loan.loanType}</TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium">{loan.loanType}</TableCell>
+                  <TableCell className="font-mono font-semibold tabular-nums">
                     {formatAmount(loan.amount)} {loan.currency}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="font-mono tabular-nums">
                     {formatAmount(loan.monthlyPayment)} {loan.currency}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="font-mono tabular-nums">
                     {formatAmount(loan.remainingDebt)} {loan.currency}
                   </TableCell>
                   <TableCell>
@@ -271,6 +318,7 @@ export default function AllLoansPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedLoan(loan);
@@ -315,7 +363,7 @@ export default function AllLoansPage() {
 
       {/* Loan details panel */}
       {selectedLoan && (
-        <Card>
+        <Card className="rounded-2xl shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
@@ -328,44 +376,28 @@ export default function AllLoansPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Tip kredita</p>
-                <p className="font-medium">{selectedLoan.loanType}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Status</p>
-                <Badge variant={statusBadgeVariant(selectedLoan.status)}>
-                  {statusLabel(selectedLoan.status)}
-                </Badge>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Iznos</p>
-                <p className="font-medium">{formatAmount(selectedLoan.amount)} {selectedLoan.currency}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Nominalna kamata</p>
-                <p className="font-medium">{formatAmount(selectedLoan.nominalRate)}%</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Efektivna kamata</p>
-                <p className="font-medium">{formatAmount(selectedLoan.effectiveRate)}%</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Mesecna rata</p>
-                <p className="font-medium">{formatAmount(selectedLoan.monthlyPayment)} {selectedLoan.currency}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Preostali dug</p>
-                <p className="font-medium">{formatAmount(selectedLoan.remainingDebt)} {selectedLoan.currency}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Pocetak</p>
-                <p className="font-medium">{formatDate(selectedLoan.startDate)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Kraj</p>
-                <p className="font-medium">{formatDate(selectedLoan.endDate)}</p>
-              </div>
+              {[
+                { label: 'Tip kredita', value: selectedLoan.loanType },
+                { label: 'Status', badge: true },
+                { label: 'Iznos', value: `${formatAmount(selectedLoan.amount)} ${selectedLoan.currency}`, mono: true },
+                { label: 'Nominalna kamata', value: `${formatAmount(selectedLoan.nominalRate)}%`, mono: true },
+                { label: 'Efektivna kamata', value: `${formatAmount(selectedLoan.effectiveRate)}%`, mono: true },
+                { label: 'Mesecna rata', value: `${formatAmount(selectedLoan.monthlyPayment)} ${selectedLoan.currency}`, mono: true },
+                { label: 'Preostali dug', value: `${formatAmount(selectedLoan.remainingDebt)} ${selectedLoan.currency}`, mono: true },
+                { label: 'Pocetak', value: formatDate(selectedLoan.startDate) },
+                { label: 'Kraj', value: formatDate(selectedLoan.endDate) },
+              ].map((item) => (
+                <div key={item.label} className="space-y-1.5 rounded-xl bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{item.label}</p>
+                  {item.badge ? (
+                    <Badge variant={statusBadgeVariant(selectedLoan.status)}>
+                      {statusLabel(selectedLoan.status)}
+                    </Badge>
+                  ) : (
+                    <p className={`font-medium ${item.mono ? 'font-mono tabular-nums' : ''}`}>{item.value}</p>
+                  )}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -1,7 +1,6 @@
 ﻿import { z } from 'zod';
 import { phoneSchema, nameSchema, emailSchema } from './validationSchemas';
 
-
 // ============================================================
 // Validacione seme za Banka 2025 - Celina 2: Osnovno poslovanje
 // ============================================================
@@ -252,5 +251,3 @@ export const transactionFilterSchema = z.object({
   amountMax: z.number().optional(),
 });
 export type TransactionFilterFormData = z.infer<typeof transactionFilterSchema>;
-
-

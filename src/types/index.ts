@@ -130,4 +130,3 @@ export interface AuthUser {
   role?: string;
   permissions: Permission[];
 }
-

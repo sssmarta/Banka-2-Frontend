@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Wallet,
   Plus,
+  CreditCard,
 } from 'lucide-react';
 import type { Account, AccountType, Transaction, TransactionStatus, TransactionFilters } from '@/types/celina2';
 import { useAuth } from '@/context/AuthContext';
@@ -51,21 +52,19 @@ const accountTypeLabels: Record<string, string> = {
   BUSINESS: 'Poslovni',
 };
 
-const accountTypeBadgeVariant: Record<string, 'info' | 'success' | 'warning'> = {
-  TEKUCI: 'info',
-  DEVIZNI: 'success',
-  POSLOVNI: 'warning',
-  CHECKING: 'info',
-  FOREIGN: 'success',
-  BUSINESS: 'warning',
+const currencyGradients: Record<string, string> = {
+  RSD: 'from-blue-500 to-blue-700',
+  EUR: 'from-indigo-500 to-violet-700',
+  USD: 'from-emerald-500 to-green-700',
+  CHF: 'from-red-500 to-rose-700',
+  GBP: 'from-purple-500 to-violet-700',
+  JPY: 'from-orange-500 to-amber-700',
+  CAD: 'from-rose-500 to-pink-700',
+  AUD: 'from-teal-500 to-cyan-700',
 };
 
-const currencyBadgeColors: Record<string, string> = {
-  RSD: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  EUR: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
-  USD: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  CHF: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  GBP: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+const currencySymbols: Record<string, string> = {
+  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
 };
 
 const transactionStatusLabels: Record<string, string> = {
@@ -135,11 +134,11 @@ export default function AccountListPage() {
         initialDeposit: Number(newAccDeposit) || 0,
         createCard: newAccCard,
       });
-      toast.success('Zahtev za otvaranje računa je uspešno podnet! Čeka odobrenje zaposlenog.');
+      toast.success('Zahtev za otvaranje racuna je uspesno podnet! Ceka odobrenje zaposlenog.');
       setShowNewAccount(false);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Podnošenje zahteva nije uspelo.');
+      toast.error(error.response?.data?.message || 'Podnosenje zahteva nije uspelo.');
     } finally {
       setCreatingAcc(false);
     }
@@ -264,7 +263,7 @@ export default function AccountListPage() {
     setTxPage(0);
   };
 
-  // --- Account table data ---
+  // --- Account data ---
   const filteredAccounts = accounts
     .filter((a) => !typeFilter || a.accountType === typeFilter)
     .sort((a, b) => b.availableBalance - a.availableBalance);
@@ -275,12 +274,19 @@ export default function AccountListPage() {
   const to = Math.min((page + 1) * rowsPerPage, totalElements);
   const paginatedAccounts = filteredAccounts.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
+  // Total balance summary
+  const totalBalance = accounts.reduce((sum, a) => {
+    if (a.currency === 'RSD') return sum + (a.balance ?? 0);
+    return sum;
+  }, 0);
+  const totalFxAccounts = accounts.filter(a => a.currency !== 'RSD').length;
+
   // --- Transaction pagination info ---
   const txFrom = txTotalElements > 0 ? txPage * txRowsPerPage + 1 : 0;
   const txTo = Math.min((txPage + 1) * txRowsPerPage, txTotalElements);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -288,8 +294,8 @@ export default function AccountListPage() {
             <Wallet className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Računi</h1>
-            <p className="text-sm text-muted-foreground">Pregled svih računa i transakcija.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Racuni</h1>
+            <p className="text-sm text-muted-foreground">Pregled svih racuna i transakcija.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -299,7 +305,7 @@ export default function AccountListPage() {
               className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Novi račun
+              Novi racun
             </Button>
           )}
           <Button
@@ -315,19 +321,19 @@ export default function AccountListPage() {
 
       {/* New account form */}
       {showNewAccount && (
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Otvaranje novog računa</CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setShowNewAccount(false)}>Otkaži</Button>
+            <CardTitle>Otvaranje novog racuna</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setShowNewAccount(false)}>Otkazi</Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Tip računa</Label>
+                <Label>Tip racuna</Label>
                 <Select value={newAccType} onValueChange={setNewAccType}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CHECKING">Tekući</SelectItem>
+                    <SelectItem value="CHECKING">Tekuci</SelectItem>
                     <SelectItem value="FOREIGN">Devizni</SelectItem>
                   </SelectContent>
                 </Select>
@@ -346,20 +352,20 @@ export default function AccountListPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Početni depozit</Label>
+                <Label>Pocetni depozit</Label>
                 <Input type="number" value={newAccDeposit} onChange={(e) => setNewAccDeposit(e.target.value)} />
               </div>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="createCardCheck" checked={newAccCard} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAccCard(e.target.checked)} title="Kreiraj karticu" />
-              <Label htmlFor="createCardCheck">Kreiraj karticu uz račun</Label>
+              <Label htmlFor="createCardCheck">Kreiraj karticu uz racun</Label>
             </div>
             <Button
               onClick={handleCreateAccount}
               disabled={creatingAcc}
               className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
             >
-              {creatingAcc ? 'Kreiranje...' : 'Otvori račun'}
+              {creatingAcc ? 'Kreiranje...' : 'Otvori racun'}
             </Button>
           </CardContent>
         </Card>
@@ -367,7 +373,7 @@ export default function AccountListPage() {
 
       {/* Account filters */}
       {showFilters && (
-        <Card className="p-4">
+        <Card className="p-4 rounded-2xl">
           <div className="flex flex-wrap gap-3">
             <Select
               value={typeFilter ?? 'ALL'}
@@ -394,114 +400,177 @@ export default function AccountListPage() {
         </Alert>
       )}
 
-      {/* Accounts table */}
-      {loading ? (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 py-2">
-                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
-                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-12 animate-pulse rounded bg-muted" />
-                <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+      {/* Total Balance Summary Card */}
+      {!loading && accounts.length > 0 && (
+        <Card className="rounded-2xl overflow-hidden border-0 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 text-white shadow-xl shadow-indigo-500/20">
+          <CardContent className="py-6 px-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <p className="text-sm text-indigo-200 font-medium">Ukupno stanje (RSD racuni)</p>
+                <p className="text-3xl sm:text-4xl font-bold font-mono tabular-nums tracking-tight mt-1">
+                  {totalBalance.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RSD
+                </p>
+                {totalFxAccounts > 0 && (
+                  <p className="text-sm text-indigo-200 mt-1">+ {totalFxAccounts} devizn{totalFxAccounts === 1 ? 'i' : 'a'} racun{totalFxAccounts === 1 ? '' : 'a'}</p>
+                )}
               </div>
-            ))}
+              <div className="flex items-center gap-6 text-indigo-100">
+                <div className="text-center">
+                  <p className="text-3xl font-bold font-mono">{accounts.length}</p>
+                  <p className="text-xs text-indigo-200">Ukupno racuna</p>
+                </div>
+                <div className="h-10 w-px bg-white/20" />
+                <div className="text-center">
+                  <p className="text-3xl font-bold font-mono">{accounts.filter(a => a.status === 'ACTIVE').length}</p>
+                  <p className="text-xs text-indigo-200">Aktivnih</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Account Cards Grid */}
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-52 rounded-2xl bg-muted/50 animate-pulse" />
+          ))}
+        </div>
+      ) : paginatedAccounts.length === 0 ? (
+        <Card className="rounded-2xl">
+          <CardContent className="flex flex-col items-center py-16">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-3">
+              <Wallet className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <p className="font-semibold">Nema pronadjenih racuna</p>
+            <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim filterima.</p>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Broj racuna</TableHead>
-                <TableHead>Naziv</TableHead>
-                <TableHead>Tip</TableHead>
-                <TableHead>Raspolozivo stanje</TableHead>
-                <TableHead>Valuta</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Akcije</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedAccounts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                        <Wallet className="h-5 w-5 text-muted-foreground" />
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {paginatedAccounts.map((account, idx) => {
+              const grad = currencyGradients[account.currency] || 'from-slate-500 to-slate-700';
+              const sym = currencySymbols[account.currency] || account.currency;
+              const isSelected = selectedAccountId === account.id;
+              const dailyPct = account.dailyLimit > 0 ? Math.min(100, ((account.dailySpending ?? 0) / account.dailyLimit) * 100) : 0;
+              const monthlyPct = account.monthlyLimit > 0 ? Math.min(100, ((account.monthlySpending ?? 0) / account.monthlyLimit) * 100) : 0;
+
+              return (
+                <Card
+                  key={account.id}
+                  className={`rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                    isSelected ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/10' : 'shadow-sm hover:shadow-lg'
+                  }`}
+                  style={{ animationDelay: `${idx * 80}ms`, animationFillMode: 'both' }}
+                  onClick={() => setSelectedAccountId(account.id)}
+                  onDoubleClick={() => {
+                    if (account.accountType === 'BUSINESS' || account.accountType === 'POSLOVNI') {
+                      navigate(`/accounts/${account.id}/business`);
+                    } else {
+                      navigate(`/accounts/${account.id}`);
+                    }
+                  }}
+                >
+                  <div className="flex">
+                    {/* Left gradient strip */}
+                    <div className={`w-1.5 bg-gradient-to-b ${grad} flex-shrink-0`} />
+
+                    <div className="flex-1 p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <h3 className="font-semibold text-base truncate">
+                              {account.name || `${accountTypeLabels[account.accountType]} racun`}
+                            </h3>
+                            <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 flex-shrink-0">
+                              {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono">{formatAccountNumber(account.accountNumber)}</p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold bg-gradient-to-r ${grad} text-white`}>
+                          {account.currency}
+                        </span>
                       </div>
-                      <p className="font-medium">Nema pronađenih računa</p>
-                      <p className="text-sm text-muted-foreground">Pokušajte sa drugim filterima.</p>
+
+                      {/* Balance */}
+                      <div className="mb-4">
+                        <p className="text-2xl font-bold font-mono tabular-nums tracking-tight">
+                          {formatBalance(account.availableBalance, '')}
+                          <span className="text-sm font-semibold text-muted-foreground ml-1">{sym}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Ukupno: {formatBalance(account.balance, account.currency)}
+                        </p>
+                      </div>
+
+                      {/* Limit mini bars */}
+                      {(account.dailyLimit > 0 || account.monthlyLimit > 0) && (
+                        <div className="flex gap-4 mb-3">
+                          {account.dailyLimit > 0 && (
+                            <div className="flex-1">
+                              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                <span>Dnevno</span>
+                                <span className="font-mono">{Math.round(dailyPct)}%</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${dailyPct > 80 ? 'bg-red-500' : dailyPct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                  style={{ width: `${dailyPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {account.monthlyLimit > 0 && (
+                            <div className="flex-1">
+                              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                <span>Mesecno</span>
+                                <span className="font-mono">{Math.round(monthlyPct)}%</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${monthlyPct > 80 ? 'bg-red-500' : monthlyPct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                  style={{ width: `${monthlyPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <CreditCard className="h-3.5 w-3.5" />
+                          <span>{accountTypeLabels[account.accountType]}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 h-auto py-1 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (account.accountType === 'POSLOVNI' || account.accountType === 'BUSINESS') {
+                              navigate(`/accounts/${account.id}/business`);
+                            } else {
+                              navigate(`/accounts/${account.id}`);
+                            }
+                          }}
+                        >
+                          Detalji <ChevronRight className="ml-0.5 h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedAccounts.map((account) => (
-                  <TableRow
-                    key={account.id}
-                    data-selected={selectedAccountId === account.id || undefined}
-                    className={`cursor-pointer ${
-                      selectedAccountId === account.id
-                        ? 'bg-primary/10 border-l-2 border-l-primary'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedAccountId(account.id)}
-                    onDoubleClick={() => {
-                      if (account.accountType === 'BUSINESS' || account.accountType === 'POSLOVNI') {
-                        navigate(`/accounts/${account.id}/business`);
-                      } else {
-                        navigate(`/accounts/${account.id}`);
-                      }
-                    }}
-                  >
-                    <TableCell className="font-medium font-mono">
-                      {formatAccountNumber(account.accountNumber)}
-                    </TableCell>
-                    <TableCell>{account.name || `${accountTypeLabels[account.accountType]} racun`}</TableCell>
-                    <TableCell>
-                      <Badge variant={accountTypeBadgeVariant[account.accountType]}>
-                        {accountTypeLabels[account.accountType]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatBalance(account.availableBalance, account.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${currencyBadgeColors[account.currency] || 'bg-muted text-muted-foreground'}`}>
-                        {account.currency}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
-                        {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (account.accountType === 'POSLOVNI' || account.accountType === 'BUSINESS') {
-                            navigate(`/accounts/${account.id}/business`);
-                          } else {
-                            navigate(`/accounts/${account.id}`);
-                          }
-                        }}
-                      >
-                        Detalji
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
 
           {/* Account pagination */}
-          <div className="flex items-center justify-between border-t px-4 py-3">
+          <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Redova po stranici:</span>
               <Select
@@ -524,7 +593,7 @@ export default function AccountListPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>
                 {totalElements > 0
-                  ? `${from}–${to} od ${totalElements}`
+                  ? `${from}\u2013${to} od ${totalElements}`
                   : '0 rezultata'}
               </span>
               <Button
@@ -547,23 +616,23 @@ export default function AccountListPage() {
               </Button>
             </div>
           </div>
-        </Card>
+        </>
       )}
 
       {/* Transaction panel */}
       {selectedAccount && (
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-              <CardTitle className="text-lg">
-                Transakcije — {selectedAccount.name || `${accountTypeLabels[selectedAccount.accountType]} racun`}
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({formatAccountNumber(selectedAccount.accountNumber)})
-                </span>
-              </CardTitle>
-            </div>
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <CardTitle className="text-lg">
+                  Transakcije — {selectedAccount.name || `${accountTypeLabels[selectedAccount.accountType]} racun`}
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({formatAccountNumber(selectedAccount.accountNumber)})
+                  </span>
+                </CardTitle>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant={showTxFilters ? 'secondary' : 'outline'}
@@ -580,7 +649,7 @@ export default function AccountListPage() {
           <CardContent className="space-y-3">
             {/* Transaction filters */}
             {showTxFilters && (
-              <Card className="p-4">
+              <Card className="p-4 rounded-xl">
                 <div className="flex flex-wrap items-end gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs">Status</Label>
@@ -676,7 +745,7 @@ export default function AccountListPage() {
                     {transactions.map((tx) => {
                       const isOutgoing = tx.fromAccountNumber === selectedAccount.accountNumber;
                       return (
-                        <TableRow key={tx.id}>
+                        <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
                           <TableCell>
                             {isOutgoing ? (
                               <ArrowUpRight className="h-4 w-4 text-destructive" />
@@ -688,18 +757,18 @@ export default function AccountListPage() {
                             {formatDate(tx.createdAt)}
                           </TableCell>
                           <TableCell>
-                            {isOutgoing ? tx.recipientName : (tx.recipientName || '—')}
+                            {tx.recipientName || '\u2014'}
                             <span className="block text-xs text-muted-foreground">
                               {isOutgoing
-                                ? formatAccountNumber((tx as unknown as Record<string, string>).toAccount || tx.toAccountNumber)
-                                : formatAccountNumber((tx as unknown as Record<string, string>).fromAccount || tx.fromAccountNumber)}
+                                ? formatAccountNumber(tx.toAccountNumber)
+                                : formatAccountNumber(tx.fromAccountNumber)}
                             </span>
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate" title={tx.paymentPurpose}>
                             {tx.paymentPurpose}
                           </TableCell>
-                          <TableCell className={`text-right font-medium whitespace-nowrap ${isOutgoing ? 'text-destructive' : 'text-green-600'}`}>
-                            {isOutgoing ? '−' : '+'}{formatBalance(tx.amount, tx.currency)}
+                          <TableCell className={`text-right font-medium font-mono tabular-nums whitespace-nowrap ${isOutgoing ? 'text-destructive' : 'text-green-600'}`}>
+                            {isOutgoing ? '\u2212' : '+'}{formatBalance(tx.amount, tx.currency)}
                           </TableCell>
                           <TableCell>
                             <Badge variant={transactionStatusVariant[tx.status]}>
@@ -736,7 +805,7 @@ export default function AccountListPage() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>
                       {txTotalElements > 0
-                        ? `${txFrom}–${txTo} od ${txTotalElements}`
+                        ? `${txFrom}\u2013${txTo} od ${txTotalElements}`
                         : '0 rezultata'}
                     </span>
                     <Button

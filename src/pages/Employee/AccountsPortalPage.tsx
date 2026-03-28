@@ -1,6 +1,6 @@
 // FE2-14a: Employee portal - pregled svih racuna sa filterima
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal,
@@ -11,12 +11,14 @@ import {
   Search,
   Wallet,
   Inbox,
+  TrendingUp,
+  Ban,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import type { Account, AccountStatus, AccountType } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -42,10 +44,10 @@ const accountTypeLabels: Record<string, string> = {
   POSLOVNI: 'Poslovni',
 };
 
-const accountTypeBadgeVariant: Record<string, 'info' | 'success' | 'warning'> = {
-  TEKUCI: 'info',
-  DEVIZNI: 'success',
-  POSLOVNI: 'warning',
+const accountTypeColors: Record<string, string> = {
+  TEKUCI: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  DEVIZNI: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  POSLOVNI: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
 };
 
 const statusLabels: Record<string, string> = {
@@ -54,10 +56,10 @@ const statusLabels: Record<string, string> = {
   INACTIVE: 'Neaktivan',
 };
 
-const statusVariant: Record<string, 'success' | 'destructive' | 'secondary'> = {
-  ACTIVE: 'success',
-  BLOCKED: 'destructive',
-  INACTIVE: 'secondary',
+const statusDotColors: Record<string, string> = {
+  ACTIVE: 'bg-emerald-500',
+  BLOCKED: 'bg-red-500',
+  INACTIVE: 'bg-gray-400 dark:bg-gray-500',
 };
 
 function formatBalance(amount: number, currency: string): string {
@@ -99,6 +101,7 @@ export default function AccountsPortalPage() {
   const [rowsPerPage] = useState(10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
@@ -146,8 +149,24 @@ export default function AccountsPortalPage() {
     }
   };
 
+  // Summary stats
+  const stats = useMemo(() => {
+    const total = accounts.length;
+    const active = accounts.filter(a => a.status === 'ACTIVE').length;
+    const blocked = accounts.filter(a => a.status === 'BLOCKED').length;
+    const totalBalance = accounts.reduce((sum, a) => sum + (a.availableBalance || 0), 0);
+    return { total, active, blocked, totalBalance };
+  }, [accounts]);
+
   const from = totalElements > 0 ? page * rowsPerPage + 1 : 0;
   const to = Math.min((page + 1) * rowsPerPage, totalElements);
+
+  const statCards = [
+    { label: 'Ukupno racuna', value: stats.total, icon: Wallet, gradient: 'from-indigo-500 to-violet-600', iconBg: 'bg-indigo-100 dark:bg-indigo-900/40', iconColor: 'text-indigo-600 dark:text-indigo-400' },
+    { label: 'Aktivni', value: stats.active, icon: CheckCircle2, gradient: 'from-emerald-500 to-green-600', iconBg: 'bg-emerald-100 dark:bg-emerald-900/40', iconColor: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Blokirani', value: stats.blocked, icon: Ban, gradient: 'from-red-500 to-rose-600', iconBg: 'bg-red-100 dark:bg-red-900/40', iconColor: 'text-red-600 dark:text-red-400' },
+    { label: 'Ukupno stanje', value: null, displayValue: formatBalance(stats.totalBalance, 'RSD'), icon: TrendingUp, gradient: 'from-blue-500 to-indigo-600', iconBg: 'bg-blue-100 dark:bg-blue-900/40', iconColor: 'text-blue-600 dark:text-blue-400' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -177,30 +196,54 @@ export default function AccountsPortalPage() {
         </div>
       </div>
 
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <Card key={stat.label} className="rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
+            <div className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="text-2xl font-bold font-mono tabular-nums tracking-tight">
+                    {stat.value !== null ? stat.value : stat.displayValue}
+                  </p>
+                </div>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.iconBg} transition-transform duration-300 group-hover:scale-110`}>
+                  <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+                </div>
+              </div>
+              <div className={`mt-3 h-1 rounded-full bg-gradient-to-r ${stat.gradient} opacity-60`} />
+            </div>
+          </Card>
+        ))}
+      </div>
+
       {/* Filters */}
       {showFilters && (
-        <Card className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Filteri pretrage</h3>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Email vlasnika</label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-2xl p-5 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Filteri pretrage</h3>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5 flex-1 min-w-[220px]">
+              <label className="text-xs font-medium text-muted-foreground">Email vlasnika</label>
+              <div className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.02]' : ''}`}>
+                <Search className={`absolute left-3 top-2.5 h-4 w-4 transition-colors ${searchFocused ? 'text-indigo-500' : 'text-muted-foreground'}`} />
                 <Input
                   placeholder="Pretrazi po emailu..."
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
-                  className="pl-8 w-[250px]"
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  className="pl-9 h-10"
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Tip racuna</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Tip racuna</label>
               <Select
                 value={accountType ?? 'ALL'}
                 onValueChange={(val) => setAccountType(val === 'ALL' ? undefined : val as AccountType)}
               >
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[170px] h-10">
                   <SelectValue placeholder="Svi tipovi" />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,13 +254,13 @@ export default function AccountsPortalPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Status</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
               <Select
                 value={status ?? 'ALL'}
                 onValueChange={(val) => setStatus(val === 'ALL' ? undefined : val as AccountStatus)}
               >
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[170px] h-10">
                   <SelectValue placeholder="Svi statusi" />
                 </SelectTrigger>
                 <SelectContent>
@@ -241,7 +284,7 @@ export default function AccountsPortalPage() {
 
       {/* Accounts table */}
       {loading ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -270,7 +313,7 @@ export default function AccountsPortalPage() {
           </Table>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -298,39 +341,43 @@ export default function AccountsPortalPage() {
                 </TableRow>
               ) : (
                 accounts.map((account) => (
-                  <TableRow key={account.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell>{account.ownerName}</TableCell>
-                    <TableCell className="font-medium">
+                  <TableRow
+                    key={account.id}
+                    className="group hover:bg-muted/50 transition-all duration-200 hover:shadow-[inset_0_0_0_1px_rgba(99,102,241,0.1)]"
+                  >
+                    <TableCell className="font-medium">{account.ownerName}</TableCell>
+                    <TableCell className="font-mono text-sm tabular-nums">
                       {formatAccountNumber(account.accountNumber)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={accountTypeBadgeVariant[account.accountType]}>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${accountTypeColors[account.accountType] || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
                         {accountTypeLabels[account.accountType]}
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-mono font-semibold tabular-nums">
                       {formatBalance(account.availableBalance, account.currency)}
                     </TableCell>
-                    <TableCell>{account.currency}</TableCell>
+                    <TableCell className="font-mono text-sm">{account.currency}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant[account.status]}>
-                        {statusLabels[account.status] || account.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${statusDotColors[account.status]}`} />
+                        <span className="text-sm">{statusLabels[account.status] || account.status}</span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
                         {account.status === 'ACTIVE' && (
-                          <Button size="sm" variant="outline" onClick={() => changeStatus(account.id, 'BLOCKED')}>
+                          <Button size="sm" variant="outline" onClick={() => changeStatus(account.id, 'BLOCKED')} className="h-8">
                             Blokiraj
                           </Button>
                         )}
                         {account.status === 'BLOCKED' && (
-                          <Button size="sm" variant="outline" onClick={() => changeStatus(account.id, 'ACTIVE')}>
+                          <Button size="sm" variant="outline" onClick={() => changeStatus(account.id, 'ACTIVE')} className="h-8">
                             Aktiviraj
                           </Button>
                         )}
                         {account.status !== 'INACTIVE' && (
-                          <Button size="sm" variant="destructive" onClick={() => changeStatus(account.id, 'INACTIVE')}>
+                          <Button size="sm" variant="destructive" onClick={() => changeStatus(account.id, 'INACTIVE')} className="h-8">
                             Deaktiviraj
                           </Button>
                         )}
@@ -339,6 +386,7 @@ export default function AccountsPortalPage() {
                           variant="outline"
                           onClick={() => navigate(`/employee/accounts/${account.id}/cards`)}
                           title="Kartice"
+                          className="h-8"
                         >
                           <CreditCard className="h-4 w-4" />
                         </Button>
@@ -350,6 +398,7 @@ export default function AccountsPortalPage() {
                               ? `/accounts/${account.id}/business`
                               : `/accounts/${account.id}`
                           )}
+                          className="h-8"
                         >
                           Detalji
                         </Button>

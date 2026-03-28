@@ -8,6 +8,8 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import type { Employee, EmployeeFilters } from '../../types';
 import { Permission } from '../../types';
@@ -34,6 +36,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+
+function getInitials(firstName: string, lastName: string): string {
+  return `${(firstName || '?')[0]}${(lastName || '?')[0]}`.toUpperCase();
+}
+
+const avatarColors = [
+  'bg-indigo-500',
+  'bg-violet-500',
+  'bg-emerald-500',
+  'bg-amber-500',
+  'bg-rose-500',
+  'bg-cyan-500',
+  'bg-fuchsia-500',
+  'bg-teal-500',
+];
+
+function getAvatarColor(id: number): string {
+  return avatarColors[id % avatarColors.length];
+}
 
 export default function EmployeeListPage() {
   const navigate = useNavigate();
@@ -66,7 +87,7 @@ export default function EmployeeListPage() {
       setEmployees(data.content);
       setTotalElements(data.totalElements);
     } catch {
-      setError('Greška pri učitavanju zaposlenih. Pokušajte ponovo.');
+      setError('Greska pri ucitavanju zaposlenih. Pokusajte ponovo.');
     } finally {
       setLoading(false);
     }
@@ -98,17 +119,20 @@ export default function EmployeeListPage() {
   const from = page * rowsPerPage + 1;
   const to = Math.min((page + 1) * rowsPerPage, totalElements);
 
+  const activeCount = employees.filter(e => e.isActive).length;
+  const inactiveCount = employees.filter(e => !e.isActive).length;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
-            <Users className="h-5 w-5" />
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25">
+            <Users className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Upravljanje zaposlenima</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Pregled, pretraga i upravljanje nalozima zaposlenih
             </p>
           </div>
@@ -119,11 +143,12 @@ export default function EmployeeListPage() {
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
             title="Filteri"
+            className="rounded-xl"
           >
             <SlidersHorizontal className="h-4 w-4" />
           </Button>
           <Button
-            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:scale-[1.02] transition-all duration-200 rounded-xl"
             onClick={() => navigate('/admin/employees/new')}
           >
             <UserPlus className="mr-2 h-4 w-4" />
@@ -132,10 +157,41 @@ export default function EmployeeListPage() {
         </div>
       </div>
 
+      {/* Stats bar */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-2xl border bg-card p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{totalElements}</p>
+            <p className="text-xs text-muted-foreground">Ukupno</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-card p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <UserCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{activeCount}</p>
+            <p className="text-xs text-muted-foreground">Aktivni</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-card p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-600 dark:text-red-400">
+            <UserX className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{inactiveCount}</p>
+            <p className="text-xs text-muted-foreground">Neaktivni</p>
+          </div>
+        </div>
+      </div>
+
       {/* Filter card */}
       {showFilters && (
-        <Card className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Filteri pretrage</h3>
+        <Card className="p-5 rounded-2xl" style={{ animation: 'fadeUp 0.3s ease-out' }}>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Filteri pretrage</h3>
           <div className="flex flex-wrap gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -143,7 +199,7 @@ export default function EmployeeListPage() {
                 placeholder="Pretraga po email-u"
                 value={filters.email}
                 onChange={(e) => setFilters({ ...filters, email: e.target.value })}
-                className="pl-9 w-[220px]"
+                className="pl-9 w-[220px] rounded-lg"
               />
             </div>
             <div className="relative">
@@ -152,7 +208,7 @@ export default function EmployeeListPage() {
                 placeholder="Pretraga po imenu"
                 value={filters.firstName}
                 onChange={(e) => setFilters({ ...filters, firstName: e.target.value })}
-                className="pl-9 w-[220px]"
+                className="pl-9 w-[220px] rounded-lg"
               />
             </div>
             <div className="relative">
@@ -161,7 +217,7 @@ export default function EmployeeListPage() {
                 placeholder="Pretraga po prezimenu"
                 value={filters.lastName}
                 onChange={(e) => setFilters({ ...filters, lastName: e.target.value })}
-                className="pl-9 w-[220px]"
+                className="pl-9 w-[220px] rounded-lg"
               />
             </div>
             <div className="relative">
@@ -170,7 +226,7 @@ export default function EmployeeListPage() {
                 placeholder="Pretraga po poziciji"
                 value={filters.position}
                 onChange={(e) => setFilters({ ...filters, position: e.target.value })}
-                className="pl-9 w-[220px]"
+                className="pl-9 w-[220px] rounded-lg"
               />
             </div>
           </div>
@@ -183,67 +239,51 @@ export default function EmployeeListPage() {
         </Alert>
       )}
 
-      {/* Loading skeleton */}
+      {/* Table */}
       {loading ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12" />
                 <TableHead>Ime i prezime</TableHead>
-                <TableHead>Username</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Pozicija</TableHead>
                 <TableHead>Telefon</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Uloga</TableHead>
-                <TableHead className="text-center">Akcije</TableHead>
+                <TableHead className="text-center w-16">Akcije</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell>
-                    <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-16 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="mx-auto h-4 w-8 animate-pulse rounded bg-muted" />
-                  </TableCell>
+                  <TableCell><div className="h-9 w-9 rounded-full bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-32 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-40 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-28 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell><div className="h-4 w-4 rounded-full bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                  <TableCell className="text-center"><div className="mx-auto h-8 w-8 rounded-lg bg-muted animate-pulse" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12" />
                 <TableHead>Ime i prezime</TableHead>
-                <TableHead>Username</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Pozicija</TableHead>
                 <TableHead>Telefon</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Uloga</TableHead>
-                <TableHead className="text-center">Akcije</TableHead>
+                <TableHead className="text-center w-16">Akcije</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -266,31 +306,38 @@ export default function EmployeeListPage() {
                   <TableRow
                     key={emp.id}
                     className={cn(
-                      'transition-colors',
+                      'transition-all duration-200',
                       canEdit(emp)
-                        ? 'cursor-pointer hover:bg-primary/5'
+                        ? 'cursor-pointer hover:bg-primary/5 hover:shadow-sm hover:-translate-y-[1px]'
                         : 'hover:bg-muted/50',
                       emp.id === user?.id ? 'opacity-60' : ''
                     )}
                     onClick={() => handleRowClick(emp)}
                   >
+                    {/* Avatar */}
+                    <TableCell>
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full text-white text-xs font-bold ${getAvatarColor(emp.id)}`}>
+                        {getInitials(emp.firstName, emp.lastName)}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium">
                       {emp.firstName} {emp.lastName}
                     </TableCell>
-                    <TableCell>{emp.username}</TableCell>
-                    <TableCell>{emp.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{emp.email}</TableCell>
                     <TableCell>{emp.position}</TableCell>
-                    <TableCell>{emp.phoneNumber}</TableCell>
+                    <TableCell className="text-muted-foreground">{emp.phoneNumber}</TableCell>
+                    {/* Status dot */}
                     <TableCell>
-                      <Badge variant={emp.isActive ? 'success' : 'destructive'}>
-                        {emp.isActive ? 'Aktivan' : 'Neaktivan'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2.5 w-2.5 rounded-full ${emp.isActive ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500 shadow-sm shadow-red-500/50'}`} />
+                        <span className="text-xs text-muted-foreground">{emp.isActive ? 'Aktivan' : 'Neaktivan'}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {isAdmin(emp) ? (
-                        <Badge variant="warning">Admin</Badge>
+                        <Badge variant="warning" className="text-[11px]">Admin</Badge>
                       ) : (
-                        <Badge variant="outline">Zaposleni</Badge>
+                        <Badge variant="outline" className="text-[11px]">Zaposleni</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
@@ -298,6 +345,7 @@ export default function EmployeeListPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 rounded-lg hover:bg-indigo-500/10 hover:text-indigo-600 transition-all"
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate(`/admin/employees/${emp.id}`);
@@ -325,7 +373,7 @@ export default function EmployeeListPage() {
                   setPage(0);
                 }}
               >
-                <SelectTrigger className="h-8 w-[70px]">
+                <SelectTrigger className="h-8 w-[70px] rounded-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -338,13 +386,13 @@ export default function EmployeeListPage() {
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <span>
                 {totalElements > 0
-                  ? `${from}–${to} od ${totalElements}`
+                  ? `${from}-${to} od ${totalElements}`
                   : '0 rezultata'}
               </span>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-lg"
                 disabled={page === 0}
                 onClick={() => setPage(page - 1)}
               >
@@ -353,7 +401,7 @@ export default function EmployeeListPage() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-lg"
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage(page + 1)}
               >
@@ -363,6 +411,13 @@ export default function EmployeeListPage() {
           </div>
         </Card>
       )}
+
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

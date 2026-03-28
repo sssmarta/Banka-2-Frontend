@@ -12,12 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthPageLayout from '@/components/layout/AuthPageLayout';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -31,7 +29,6 @@ export default function ForgotPasswordPage() {
   });
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
-    setServerError('');
     setIsSubmitting(true);
     try {
       await authService.forgotPassword(data);
@@ -83,12 +80,6 @@ export default function ForgotPasswordPage() {
                 <p className="text-sm text-muted-foreground text-center mb-4">
                   Unesite vašu email adresu i poslaćemo vam link za resetovanje lozinke.
                 </p>
-
-                {serverError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertDescription>{serverError}</AlertDescription>
-                  </Alert>
-                )}
 
                 <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
                   <div className="space-y-2">

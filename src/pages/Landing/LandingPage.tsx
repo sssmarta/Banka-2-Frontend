@@ -66,16 +66,15 @@ const currencies = [
   { code: 'AUD', symbol: 'A$' },
 ];
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
-
 function useBackendStatus() {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   useEffect(() => {
+    const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/v3/api-docs`, {
+        const res = await fetch(`${apiBaseUrl}/v3/api-docs`, {
           method: 'HEAD',
           signal: AbortSignal.timeout(4000),
         });

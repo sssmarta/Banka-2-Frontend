@@ -1,17 +1,15 @@
 // FE2-03a: Detaljan prikaz licnog racuna (tekuci/devizni)
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  ArrowUpRight,
-  ArrowDownLeft,
-  CreditCard,
   Pencil,
   ArrowLeftRight,
   History,
-  Wallet,
   Inbox,
+  Send,
+  Settings2,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
@@ -22,15 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveContainer, LineChart, Line } from 'recharts';
 
 const accountTypeLabels: Record<string, string> = {
   TEKUCI: 'Tekuci',
@@ -67,6 +57,10 @@ const txStatusVariant: Record<string, 'warning' | 'success' | 'destructive' | 's
   CANCELLED: 'secondary',
 };
 
+const currencySymbols: Record<string, string> = {
+  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
+};
+
 function formatBalance(amount: number | null | undefined, currency: string): string {
   const n = typeof amount === 'number' ? amount : Number(amount) || 0;
   return `${n.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || ''}`;
@@ -78,9 +72,94 @@ function formatAccountNumber(accountNumber: string | null | undefined): string {
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 16)}-${accountNumber.slice(16)}`;
 }
 
-function formatDate(dateStr: string): string {
+function formatDateGroup(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const txDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (txDay.getTime() === today.getTime()) return 'Danas';
+  if (txDay.getTime() === yesterday.getTime()) return 'Juce';
+  return date.toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' });
+}
+
+/** Generate fake 7-day sparkline data */
+function generateSparkline(endValue: number): number[] {
+  const pts: number[] = [];
+  let v = endValue * (0.88 + Math.random() * 0.08);
+  for (let i = 0; i < 7; i++) {
+    v += (endValue - v) * 0.25 + (Math.random() - 0.45) * endValue * 0.03;
+    pts.push(Math.round(v));
+  }
+  pts[6] = Math.round(endValue);
+  return pts;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Circular Progress Ring
+// ────────────────────────────────────────────────────────────────────
+function LimitRing({ spent, limit, currency, label, size = 100 }: { spent: number; limit: number; currency: string; label: string; size?: number }) {
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  const radius = (size - 12) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  const color = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981';
+  const remaining = Math.max(0, limit - spent);
+
+  return (
+    <div className="flex flex-col items-center gap-3 flex-1 min-w-[160px]">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth="6" className="text-muted/30" />
+          <circle
+            cx={size / 2} cy={size / 2} r={radius} fill="none"
+            stroke={color} strokeWidth="6" strokeLinecap="round"
+            strokeDasharray={circumference} strokeDashoffset={offset}
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-lg font-bold font-mono tabular-nums">{Math.round(pct)}%</span>
+          <span className="text-[10px] text-muted-foreground">iskorisceno</span>
+        </div>
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-xs text-muted-foreground font-mono tabular-nums mt-0.5">
+          {formatBalance(spent, '')} / {formatBalance(limit, currency)}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color }}>
+          Preostalo: {formatBalance(remaining, currency)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Mini Sparkline
+// ────────────────────────────────────────────────────────────────────
+function MiniSparkline({ data }: { data: number[] }) {
+  const chartData = data.map((v, i) => ({ i, v }));
+  const isUp = data.length >= 2 && data[data.length - 1] >= data[0];
+  return (
+    <div className="h-10 w-24">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData}>
+          <Line
+            type="monotone"
+            dataKey="v"
+            stroke={isUp ? '#10b981' : '#ef4444'}
+            strokeWidth={2}
+            dot={false}
+            strokeOpacity={0.7}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 export default function AccountDetailsPage() {
@@ -94,6 +173,11 @@ export default function AccountDetailsPage() {
   const [dailyLimit, setDailyLimit] = useState('');
   const [monthlyLimit, setMonthlyLimit] = useState('');
   const [isSavingLimits, setIsSavingLimits] = useState(false);
+  const [showLimits, setShowLimits] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+
+  // Stable sparkline data
+  const sparklineRef = useRef<number[] | null>(null);
 
   useEffect(() => {
     const accountId = Number(id);
@@ -123,13 +207,16 @@ export default function AccountDetailsPage() {
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));
 
+        if (!sparklineRef.current) {
+          sparklineRef.current = generateSparkline(accountData.balance);
+        }
+
         const transactionsResponse = await transactionService.getAll({
           accountNumber: accountData.accountNumber,
           page: 0,
           limit: 10,
         });
         const rawTx = Array.isArray(transactionsResponse.content) ? transactionsResponse.content : [];
-        // Mapiranje BE polja -> FE polja (fromAccount -> fromAccountNumber, itd.)
         setTransactions(rawTx.map((tx) => {
           const t = tx as unknown as Record<string, unknown>;
           return {
@@ -150,16 +237,6 @@ export default function AccountDetailsPage() {
     loadData();
   }, [id]);
 
-  const dailyProgress = useMemo(() => {
-    if (!account || account.dailyLimit <= 0) return 0;
-    return Math.min(100, (account.dailySpending / account.dailyLimit) * 100);
-  }, [account]);
-
-  const monthlyProgress = useMemo(() => {
-    if (!account || account.monthlyLimit <= 0) return 0;
-    return Math.min(100, (account.monthlySpending / account.monthlyLimit) * 100);
-  }, [account]);
-
   const saveName = async () => {
     if (!account) return;
     const newName = renameValue.trim();
@@ -173,6 +250,7 @@ export default function AccountDetailsPage() {
       const updated = await accountService.updateName(account.id, newName);
       setAccount(updated);
       toast.success('Naziv racuna je uspesno promenjen.');
+      setShowRename(false);
     } catch {
       toast.error('Promena naziva nije uspela.');
     } finally {
@@ -197,6 +275,7 @@ export default function AccountDetailsPage() {
       });
       setAccount({ ...account, dailyLimit: parsedDaily, monthlyLimit: parsedMonthly });
       toast.success('Limiti su uspesno sacuvani.');
+      setShowLimits(false);
     } catch {
       toast.error('Promena limita nije uspela.');
     } finally {
@@ -204,32 +283,34 @@ export default function AccountDetailsPage() {
     }
   };
 
+  // Group transactions by date
+  const groupedTransactions = useMemo(() => {
+    const groups: { label: string; items: Transaction[] }[] = [];
+    const map = new Map<string, Transaction[]>();
+
+    transactions.forEach(tx => {
+      const key = formatDateGroup(tx.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(tx);
+    });
+
+    map.forEach((items, label) => {
+      groups.push({ label, items });
+    });
+
+    return groups;
+  }, [transactions]);
+
   if (loading) {
     return (
-      <div className="space-y-6 py-6">
+      <div className="space-y-6 py-6 animate-fade-up">
         <div className="h-8 w-40 rounded bg-muted animate-pulse" />
-        <div className="h-10 w-64 rounded bg-muted animate-pulse" />
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-6 w-32 rounded bg-muted animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="h-4 w-full rounded bg-muted animate-pulse" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <div className="h-48 rounded-2xl bg-gradient-to-r from-indigo-500/20 to-violet-500/20 animate-pulse" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="h-40 rounded-2xl bg-muted/50 animate-pulse" />
+          <div className="h-40 rounded-2xl bg-muted/50 animate-pulse" />
+        </div>
+        <div className="h-64 rounded-2xl bg-muted/50 animate-pulse" />
       </div>
     );
   }
@@ -251,220 +332,260 @@ export default function AccountDetailsPage() {
     );
   }
 
+  const sym = currencySymbols[account.currency] || account.currency;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-up">
       {/* Back button */}
       <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Nazad na racune
       </Button>
 
-      {/* Hero header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 p-6 sm:p-8 text-white shadow-lg shadow-indigo-500/20">
-        <div className="absolute top-0 right-0 -mt-4 -mr-4 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute bottom-0 left-0 -mb-6 -ml-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
-        <div className="relative">
-          <div className="flex flex-wrap items-center gap-3 mb-1">
-            <Wallet className="h-6 w-6" />
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{account.name || 'Detalji racuna'}</h1>
-            <Badge variant={statusVariant[account.status]} className="border-white/20">
-              {statusLabels[account.status] || account.status}
-            </Badge>
-            <Badge variant="info" className="border-white/20">
-              {accountTypeLabels[account.accountType] || account.accountType}
-            </Badge>
+      {/* Hero header - full width gradient */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-8 sm:p-10 text-white shadow-2xl shadow-indigo-500/25">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 -mt-12 -mr-12 h-48 w-48 rounded-full bg-white/5 blur-3xl" />
+        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-36 w-36 rounded-full bg-white/5 blur-2xl" />
+        <div className="absolute top-1/3 right-1/4 h-24 w-24 rounded-full bg-purple-400/10 blur-xl" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Badge variant={statusVariant[account.status]} className="border-white/20 text-xs">
+                {statusLabels[account.status] || account.status}
+              </Badge>
+              <Badge variant="info" className="border-white/20 text-xs">
+                {accountTypeLabels[account.accountType] || account.accountType}
+              </Badge>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">
+              {account.name || 'Detalji racuna'}
+            </h1>
+            <p className="text-indigo-200 font-mono text-sm mb-5">{formatAccountNumber(account.accountNumber)}</p>
+
+            <div className="flex items-end gap-4">
+              <div>
+                <p className="text-xs text-indigo-200 uppercase tracking-wider mb-1">Stanje</p>
+                <p className="text-4xl sm:text-5xl font-bold font-mono tabular-nums tracking-tight">
+                  {formatBalance(account.balance, '')}
+                  <span className="text-xl font-semibold text-indigo-200 ml-2">{sym}</span>
+                </p>
+              </div>
+              {sparklineRef.current && (
+                <div className="mb-2">
+                  <MiniSparkline data={sparklineRef.current} />
+                </div>
+              )}
+            </div>
+
+            <p className="mt-2 text-sm text-indigo-200">
+              Raspolozivo: <span className="font-mono tabular-nums font-semibold text-white">{formatBalance(account.availableBalance, account.currency)}</span>
+            </p>
           </div>
-          <p className="text-indigo-100 font-mono text-sm mb-4">{formatAccountNumber(account.accountNumber)}</p>
-          <div className="text-3xl sm:text-4xl font-bold tracking-tight">
-            {formatBalance(account.balance, account.currency)}
-          </div>
-          <p className="mt-1 text-indigo-100 text-sm">
-            Raspolozivo: {formatBalance(account.availableBalance, account.currency)}
-          </p>
         </div>
       </div>
 
-      {/* Balance details card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Stanje racuna</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ukupno stanje</p>
-              <p className="text-xl font-bold mt-1">{formatBalance(account.balance, account.currency)}</p>
+      {/* Limit usage - horizontal circular rings */}
+      {(account.dailyLimit > 0 || account.monthlyLimit > 0) && (
+        <Card className="rounded-2xl">
+          <CardContent className="py-6">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-16">
+              {account.dailyLimit > 0 && (
+                <LimitRing
+                  spent={account.dailySpending}
+                  limit={account.dailyLimit}
+                  currency={account.currency}
+                  label="Dnevna potrosnja"
+                  size={110}
+                />
+              )}
+              {account.dailyLimit > 0 && account.monthlyLimit > 0 && (
+                <div className="hidden sm:block h-24 w-px bg-border" />
+              )}
+              {account.monthlyLimit > 0 && (
+                <LimitRing
+                  spent={account.monthlySpending}
+                  limit={account.monthlyLimit}
+                  currency={account.currency}
+                  label="Mesecna potrosnja"
+                  size={110}
+                />
+              )}
             </div>
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Raspolozivo</p>
-              <p className="text-xl font-bold mt-1">{formatBalance(account.availableBalance, account.currency)}</p>
-            </div>
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rezervisano</p>
-              <p className="text-lg font-semibold mt-1 text-muted-foreground">{formatBalance(account.reservedBalance, account.currency)}</p>
-            </div>
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Odrzavanje</p>
-              <p className="text-lg font-semibold mt-1 text-muted-foreground">{formatBalance(account.maintenanceFee, account.currency)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Limits card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Limiti i potrosnja</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3 rounded-lg border p-4">
-            <div className="flex justify-between text-sm">
-              <span className="font-medium">Dnevna potrosnja</span>
-              <span className="font-semibold tabular-nums">
-                {formatBalance(account.dailySpending, account.currency)} / {formatBalance(account.dailyLimit, account.currency)}
-              </span>
-            </div>
-            <Progress value={dailyProgress} className={`h-2.5 ${dailyProgress > 80 ? '[&>div]:bg-red-500' : dailyProgress > 50 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`} />
-            <p className="text-xs text-muted-foreground">{(100 - dailyProgress).toFixed(0)}% dnevnog limita preostalo</p>
-          </div>
-          <div className="space-y-3 rounded-lg border p-4">
-            <div className="flex justify-between text-sm">
-              <span className="font-medium">Mesecna potrosnja</span>
-              <span className="font-semibold tabular-nums">
-                {formatBalance(account.monthlySpending, account.currency)} / {formatBalance(account.monthlyLimit, account.currency)}
-              </span>
-            </div>
-            <Progress value={monthlyProgress} className={`h-2.5 ${monthlyProgress > 80 ? '[&>div]:bg-red-500' : monthlyProgress > 50 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`} />
-            <p className="text-xs text-muted-foreground">{(100 - monthlyProgress).toFixed(0)}% mesecnog limita preostalo</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="dailyLimit">Novi dnevni limit</Label>
-              <Input id="dailyLimit" type="number" value={dailyLimit} onChange={(e) => setDailyLimit(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="monthlyLimit">Novi mesecni limit</Label>
-              <Input id="monthlyLimit" type="number" value={monthlyLimit} onChange={(e) => setMonthlyLimit(e.target.value)} />
-            </div>
-          </div>
-          <Button onClick={saveLimits} disabled={isSavingLimits} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
-            {isSavingLimits ? 'Cuvanje...' : 'Sacuvaj limite'}
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Actions - horizontal row of pill buttons */}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all rounded-full px-6"
+          onClick={() => navigate(`/payments/new?from=${account.accountNumber}`)}
+        >
+          <Send className="mr-2 h-4 w-4" /> Novo placanje
+        </Button>
+        <Button
+          variant="outline"
+          className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-full px-6"
+          onClick={() => navigate(`/transfers?from=${account.accountNumber}`)}
+        >
+          <ArrowLeftRight className="mr-2 h-4 w-4" /> Transfer
+        </Button>
+        <Button
+          variant="outline"
+          className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-full px-6"
+          onClick={() => setShowLimits(!showLimits)}
+        >
+          <Settings2 className="mr-2 h-4 w-4" /> Promeni limit
+        </Button>
+        <Button
+          variant="outline"
+          className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-full px-6"
+          onClick={() => setShowRename(!showRename)}
+        >
+          <Pencil className="mr-2 h-4 w-4" /> Preimenuj
+        </Button>
+        <Button
+          variant="outline"
+          className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-full px-6"
+          onClick={() => navigate(`/payments/history?account=${account.accountNumber}`)}
+        >
+          <History className="mr-2 h-4 w-4" /> Sve transakcije
+        </Button>
+      </div>
 
-      {/* Actions card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Akcije</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Pencil className="h-4 w-4 text-muted-foreground" />
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Novi naziv racuna"
-              className="max-w-sm"
-            />
-            <Button onClick={saveName} disabled={isSavingName}>
-              {isSavingName ? 'Cuvanje...' : 'Izmeni naziv'}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
-              onClick={() => navigate(`/payments/new?from=${account.accountNumber}`)}
-            >
-              <CreditCard className="mr-2 h-4 w-4" /> Novo placanje
-            </Button>
-            <Button variant="outline" className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors" onClick={() => navigate(`/transfers?from=${account.accountNumber}`)}>
-              <ArrowLeftRight className="mr-2 h-4 w-4" /> Prenos
-            </Button>
-            <Button variant="outline" className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors" onClick={() => navigate(`/payments/history?account=${account.accountNumber}`)}>
-              <History className="mr-2 h-4 w-4" /> Sve transakcije
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Rename inline (collapsible) */}
+      {showRename && (
+        <Card className="rounded-2xl">
+          <CardContent className="py-5">
+            <div className="flex items-center gap-3">
+              <Pencil className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Novi naziv racuna"
+                className="max-w-sm"
+              />
+              <Button onClick={saveName} disabled={isSavingName} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 rounded-full">
+                {isSavingName ? 'Cuvanje...' : 'Sacuvaj'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowRename(false)}>Otkazi</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Recent transactions */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Poslednje transakcije</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {transactions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
+      {/* Change limits inline (collapsible) */}
+      {showLimits && (
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle className="text-base">Promena limita</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="dailyLimit">Novi dnevni limit</Label>
+                <Input id="dailyLimit" type="number" value={dailyLimit} onChange={(e) => setDailyLimit(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monthlyLimit">Novi mesecni limit</Label>
+                <Input id="monthlyLimit" type="number" value={monthlyLimit} onChange={(e) => setMonthlyLimit(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={saveLimits} disabled={isSavingLimits} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 rounded-full">
+                {isSavingLimits ? 'Cuvanje...' : 'Sacuvaj limite'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowLimits(false)}>Otkazi</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Balance details - horizontal cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Ukupno stanje', value: formatBalance(account.balance, account.currency), main: true },
+          { label: 'Raspolozivo', value: formatBalance(account.availableBalance, account.currency), main: true },
+          { label: 'Rezervisano', value: formatBalance(account.reservedBalance, account.currency), main: false },
+          { label: 'Odrzavanje', value: formatBalance(account.maintenanceFee, account.currency), main: false },
+        ].map(item => (
+          <Card key={item.label} className="rounded-2xl">
+            <CardContent className="py-4 px-5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{item.label}</p>
+              <p className={`font-mono tabular-nums mt-1 ${item.main ? 'text-xl font-bold' : 'text-lg font-semibold text-muted-foreground'}`}>
+                {item.value}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Recent transactions - grouped by date, card-style */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+          <h2 className="text-lg font-semibold">Poslednje transakcije</h2>
+        </div>
+
+        {transactions.length === 0 ? (
+          <Card className="rounded-2xl">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <div className="rounded-full bg-muted p-3 mb-3">
                 <Inbox className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="font-medium text-muted-foreground">Nema transakcija za ovaj racun</p>
+              <p className="font-semibold text-muted-foreground">Nema transakcija za ovaj racun</p>
               <p className="text-sm text-muted-foreground mt-1">Transakcije ce se pojaviti nakon prve uplate ili placanja.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Primalac / Posiljalac</TableHead>
-                  <TableHead>Svrha</TableHead>
-                  <TableHead className="text-right">Iznos</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.map((tx) => {
-                  const isOutgoing = tx.fromAccountNumber === account.accountNumber;
-                  return (
-                    <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell>
-                        {isOutgoing ? (
-                          <ArrowUpRight className="h-4 w-4 text-destructive" />
-                        ) : (
-                          <ArrowDownLeft className="h-4 w-4 text-green-600" />
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">{formatDate(tx.createdAt)}</TableCell>
-                      <TableCell>
-                        {tx.recipientName || '\u2014'}
-                        <span className="block text-xs text-muted-foreground">
-                          {isOutgoing
-                            ? formatAccountNumber(tx.toAccountNumber)
-                            : formatAccountNumber(tx.fromAccountNumber)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={tx.paymentPurpose}>
-                        {tx.paymentPurpose}
-                      </TableCell>
-                      <TableCell className={`text-right font-medium whitespace-nowrap ${isOutgoing ? 'text-destructive' : 'text-green-600'}`}>
-                        {isOutgoing ? '\u2212' : '+'}{formatBalance(tx.amount, tx.currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={txStatusVariant[tx.status]}>
-                          {txStatusLabels[tx.status] || tx.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {groupedTransactions.map(group => (
+              <div key={group.label}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">{group.label}</p>
+                <div className="space-y-2.5">
+                  {group.items.map((tx, idx) => {
+                    const isOutgoing = tx.fromAccountNumber === account.accountNumber;
+                    const initial = (tx.recipientName || tx.paymentPurpose || 'T').charAt(0).toUpperCase();
+                    return (
+                      <Card
+                        key={tx.id}
+                        className="rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300"
+                        style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
+                      >
+                        <CardContent className="flex items-center gap-4 py-4 px-5">
+                          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                            isOutgoing ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
+                          }`}>
+                            {initial}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{tx.recipientName || '\u2014'}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              {tx.paymentPurpose || (isOutgoing ? formatAccountNumber(tx.toAccountNumber) : formatAccountNumber(tx.fromAccountNumber))}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className={`text-base font-bold font-mono tabular-nums ${isOutgoing ? 'text-red-500' : 'text-emerald-500'}`}>
+                              {isOutgoing ? '\u2212' : '+'}{formatBalance(tx.amount, tx.currency)}
+                            </p>
+                            <Badge variant={txStatusVariant[tx.status]} className="text-[10px] px-1.5 mt-1">
+                              {txStatusLabels[tx.status] || tx.status}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

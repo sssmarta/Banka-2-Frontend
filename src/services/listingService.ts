@@ -50,7 +50,6 @@ const listingService = {
   /**
    * GET /options?stockListingId={id}
    * Dohvata lanac opcija za akciju.
-   * FIXME: Backend mozda jos nije implementirao ovaj endpoint.
    */
   getOptions: async (listingId: number): Promise<OptionChain[]> => {
     const response = await api.get('/options', {

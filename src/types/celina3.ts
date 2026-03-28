@@ -199,21 +199,6 @@ export interface Exchange {
 
 // --- Opcije ---
 
-export interface StockOption {
-  id: number;
-  ticker: string;
-  stockTicker: string;
-  optionType: 'CALL' | 'PUT';
-  strikePrice: number;
-  impliedVolatility: number;
-  openInterest: number;
-  settlementDate: string;
-  price: number;
-  ask: number;
-  bid: number;
-  volume: number;
-}
-
 export interface OptionItem {
   id: number;
   strikePrice: number;
@@ -233,12 +218,5 @@ export interface OptionChain {
   currentStockPrice: number;
 }
 
-// --- Paginated response ---
-
-export interface PaginatedResponse<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  number: number;
-  size: number;
-}
+// Re-export PaginatedResponse from index to avoid duplication
+export type { PaginatedResponse } from './index';

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { toast } from '@/lib/notify';
-import { CreditCard, Check, X as XIcon } from 'lucide-react';
+import { CreditCard, Check, X as XIcon, Inbox, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/services/api';
 
@@ -17,6 +17,12 @@ interface CardReq {
   createdAt: string;
 }
 
+const statusBorderColors: Record<string, string> = {
+  PENDING: 'border-l-amber-500',
+  APPROVED: 'border-l-emerald-500',
+  REJECTED: 'border-l-red-500',
+};
+
 export default function CardRequestsPage() {
   const [requests, setRequests] = useState<CardReq[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +35,7 @@ export default function CardRequestsPage() {
       const data = res.data;
       setRequests(Array.isArray(data?.content) ? data.content : []);
     } catch {
-      toast.error('Neuspešno učitavanje zahteva.');
+      toast.error('Neuspesno ucitavanje zahteva.');
     } finally {
       setLoading(false);
     }
@@ -50,15 +56,24 @@ export default function CardRequestsPage() {
       }
       await load();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Akcija nije uspela.');
+      const apiError = err as { response?: { data?: { message?: string } } };
+      toast.error(apiError.response?.data?.message || 'Akcija nije uspela.');
     } finally {
       setProcessing(null);
     }
   };
 
+  // Stats
+  const stats = useMemo(() => ({
+    total: requests.length,
+    pending: requests.filter(r => r.status === 'PENDING').length,
+    approved: requests.filter(r => r.status === 'APPROVED').length,
+    rejected: requests.filter(r => r.status === 'REJECTED').length,
+  }), [requests]);
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
           <CreditCard className="h-5 w-5" />
@@ -69,83 +84,110 @@ export default function CardRequestsPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Lista zahteva</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {[0,1,2].map(i => (
-                <div key={i} className="flex gap-4">
-                  <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                </div>
-              ))}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: 'Ukupno', value: stats.total, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
+          { label: 'Na cekanju', value: stats.pending, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/40' },
+          { label: 'Odobreni', value: stats.approved, icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/40' },
+          { label: 'Odbijeni', value: stats.rejected, icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/40' },
+        ].map((s) => (
+          <Card key={s.label} className="rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.bg}`}>
+                <s.icon className={`h-4 w-4 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-xl font-bold font-mono">{s.value}</p>
+              </div>
             </div>
-          ) : requests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+          </Card>
+        ))}
+      </div>
+
+      {/* Requests */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {[0,1,2,3].map(i => (
+            <div key={i} className="h-48 rounded-2xl bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : requests.length === 0 ? (
+        <Card className="rounded-2xl">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                <CreditCard className="h-8 w-8 text-muted-foreground" />
+                <Inbox className="h-8 w-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-semibold">Nema zahteva za prikaz</h3>
               <p className="mt-1 text-sm text-muted-foreground">Trenutno nema zahteva za izdavanje kartica.</p>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left">Klijent</th>
-                    <th className="py-2 text-left">Račun</th>
-                    <th className="py-2 text-left">Limit</th>
-                    <th className="py-2 text-left">Status</th>
-                    <th className="py-2 text-left">Datum</th>
-                    <th className="py-2 text-left">Akcije</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map(req => (
-                    <tr key={req.id} className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-2">
-                        <div>{req.clientName}</div>
-                        <div className="text-xs text-muted-foreground">{req.clientEmail}</div>
-                      </td>
-                      <td className="py-2 font-mono text-xs">{req.accountNumber}</td>
-                      <td className="py-2">{Number(req.cardLimit || 0).toLocaleString('sr-RS')} RSD</td>
-                      <td className="py-2">
-                        <Badge variant={req.status === 'APPROVED' ? 'success' : req.status === 'REJECTED' ? 'destructive' : 'warning'}>
-                          {req.status === 'PENDING' ? 'Na čekanju' : req.status === 'APPROVED' ? 'Odobreno' : 'Odbijeno'}
-                        </Badge>
-                      </td>
-                      <td className="py-2 text-xs">{new Date(req.createdAt).toLocaleString('sr-RS')}</td>
-                      <td className="py-2">
-                        {req.status === 'PENDING' && (
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" disabled={processing === req.id}
-                              onClick={() => handleAction(req.id, 'approve')}
-                              className="text-green-600 border-green-300 hover:bg-green-50">
-                              <Check className="h-3 w-3 mr-1" /> Odobri
-                            </Button>
-                            <Button size="sm" variant="outline" disabled={processing === req.id}
-                              onClick={() => handleAction(req.id, 'reject')}
-                              className="text-red-600 border-red-300 hover:bg-red-50">
-                              <XIcon className="h-3 w-3 mr-1" /> Odbij
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {requests.map(req => (
+            <Card
+              key={req.id}
+              className={`rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border-l-4 ${statusBorderColors[req.status] || 'border-l-gray-300 dark:border-l-gray-600'} overflow-hidden`}
+            >
+              <CardContent className="p-5 space-y-4">
+                {/* Client info + status */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-base">{req.clientName}</p>
+                    <p className="text-sm text-muted-foreground">{req.clientEmail}</p>
+                  </div>
+                  <Badge variant={req.status === 'APPROVED' ? 'success' : req.status === 'REJECTED' ? 'destructive' : 'warning'}>
+                    {req.status === 'PENDING' ? 'Na cekanju' : req.status === 'APPROVED' ? 'Odobreno' : 'Odbijeno'}
+                  </Badge>
+                </div>
+
+                {/* Details grid */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Broj racuna</p>
+                    <p className="font-mono text-xs font-medium">{req.accountNumber}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Limit</p>
+                    <p className="font-mono font-medium tabular-nums">{Number(req.cardLimit || 0).toLocaleString('sr-RS')} RSD</p>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <p className="text-xs text-muted-foreground">
+                  {new Date(req.createdAt).toLocaleString('sr-RS')}
+                </p>
+
+                {/* Actions */}
+                {req.status === 'PENDING' && (
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      disabled={processing === req.id}
+                      onClick={() => handleAction(req.id, 'approve')}
+                      className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-sm hover:shadow-md transition-all h-9"
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1.5" /> Odobri
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={processing === req.id}
+                      onClick={() => handleAction(req.id, 'reject')}
+                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 h-9"
+                    >
+                      <XIcon className="h-3.5 w-3.5 mr-1.5" /> Odbij
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
