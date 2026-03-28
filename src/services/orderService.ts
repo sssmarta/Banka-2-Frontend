@@ -63,6 +63,15 @@ const orderService = {
     const response = await api.patch(`/orders/${id}/decline`);
     return response.data;
   },
+
+  /**
+   * PATCH /orders/{id}/decline
+   * Korisnik otkazuje sopstveni order.
+   */
+  cancelOrder: async (id: number): Promise<Order> => {
+    const response = await api.patch(`/orders/${id}/decline`);
+    return response.data;
+  },
 };
 
 export default orderService;

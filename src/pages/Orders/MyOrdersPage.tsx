@@ -1,38 +1,5 @@
-/*
- * =============================================================================
- * TODO [Elena - GitHub Issue #60]: Poboljšanja MyOrdersPage
- * =============================================================================
- *
- * G1. EXECUTION PROGRESS BAR (P1):
- *   - Za svaki order koji ima remainingPortions < quantity, prikazati progress bar
- *   - Iznad ili ispod status badge-a u tabeli
- *   - Formula: progress = ((quantity - remainingPortions) / quantity) * 100
- *   - Tekst: "Izvršeno: {quantity - remainingPortions}/{quantity} ({progress}%)"
- *   - Koristiti: <div className="h-2 rounded-full bg-muted overflow-hidden">
- *                  <div className="h-full bg-emerald-500 rounded-full" style={{width: `${progress}%`}} />
- *                </div>
- *   - Samo za ordere sa statusom APPROVED ili DONE
- *
- * G2. CANCEL ORDER DUGME (P1):
- *   - Dodati dugme "Otkaži" u akcije kolonu za PENDING i APPROVED ordere
- *   - NE prikazivati za DONE, DECLINED
- *   - Na klik: otvori shadcn AlertDialog sa pitanjem "Da li ste sigurni?"
- *   - Na potvrdu: pozovi orderService.decline(orderId) ili novi cancelOrder(orderId)
- *   - Na uspeh: toast.success('Order je otkazan'), ponovo učitaj listu
- *   - Dugme styling: <Button variant="outline" size="sm" className="text-destructive">
- *
- * G3. REAL-TIME POLLING (P2 - bonus):
- *   - Ako postoje orderi sa statusom APPROVED, pokreni polling svakih 5s
- *   - useEffect sa setInterval koji ponovo fetchuje ordere
- *   - Kad svi APPROVED orderi postanu DONE/DECLINED, zaustavi polling
- *   - Cleanup: clearInterval u return funkciji useEffect-a
- *   - Pazi na memory leak: proveri mounted flag
- *
- * =============================================================================
- */
-
 import * as Dialog from '@radix-ui/react-dialog';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ClipboardList,
   Inbox,
@@ -48,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import orderService from '@/services/orderService';
 import {
   ListingType,
@@ -158,6 +126,31 @@ function getListingLabel(order: Order) {
   return `${order.listingTicker} · ${order.listingName}`;
 }
 
+function getOrderExecution(order: Order) {
+  const quantity = Math.max(0, Number(order.quantity) || 0);
+  const remaining = Math.min(quantity, Math.max(0, Number(order.remainingPortions) || 0));
+  const executed = Math.max(0, quantity - remaining);
+  const progress = quantity > 0 ? Math.round((executed / quantity) * 100) : 0;
+
+  return {
+    quantity,
+    executed,
+    progress: Math.min(100, Math.max(0, progress)),
+  };
+}
+
+function shouldShowExecutionProgress(order: Order): boolean {
+  if (order.status !== OrderStatus.APPROVED && order.status !== OrderStatus.DONE) {
+    return false;
+  }
+
+  return getOrderExecution(order).executed > 0;
+}
+
+function canCancelOrder(order: Order): boolean {
+  return order.status === OrderStatus.PENDING || order.status === OrderStatus.APPROVED;
+}
+
 function InfoRow({
   label,
   value,
@@ -189,11 +182,27 @@ export default function MyOrdersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [cancelingOrderId, setCancelingOrderId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [limit, setLimit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const isMountedRef = useRef(true);
+  const isFetchingRef = useRef(false);
 
-  const loadOrders = async (showLoader = true) => {
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const loadOrders = useCallback(async (showLoader = true) => {
+    if (!showLoader && isFetchingRef.current) {
+      return;
+    }
+
+    isFetchingRef.current = true;
+
     if (showLoader) {
       setLoading(true);
     } else {
@@ -204,46 +213,54 @@ export default function MyOrdersPage() {
       const response = await orderService.getMy(page, limit);
       const nextOrders = asArray<Order>(response.content);
 
+      if (!isMountedRef.current) {
+        return;
+      }
+
       setOrders(nextOrders);
       setTotalPages(Math.max(1, response.totalPages ?? 1));
       setLoadError('');
     } catch {
+      if (!isMountedRef.current) {
+        return;
+      }
+
       setOrders([]);
       setTotalPages(1);
       setLoadError('Neuspesno ucitavanje naloga.');
       toast.error('Neuspesno ucitavanje naloga.');
     } finally {
-      if (showLoader) {
-        setLoading(false);
-      } else {
-        setRefreshing(false);
+      isFetchingRef.current = false;
+
+      if (isMountedRef.current) {
+        if (showLoader) {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
       }
     }
-  };
+  }, [limit, page]);
 
   useEffect(() => {
     void loadOrders(true);
-  }, [page, limit]);
+  }, [loadOrders]);
 
-  /*
-   * TODO [Elena - G3]: REAL-TIME POLLING
-   * Dodaj useEffect koji pokreće polling svakih 5 sekundi
-   * AKO postoji barem jedan order sa statusom APPROVED:
-   *
-   * useEffect(() => {
-   *   const hasActiveOrders = orders.some(o => o.status === 'APPROVED');
-   *   if (!hasActiveOrders) return;
-   *
-   *   const interval = setInterval(() => {
-   *     void loadOrders(false); // false = ne prikazuj loading skeleton
-   *   }, 5000);
-   *
-   *   return () => clearInterval(interval);
-   * }, [orders]);
-   *
-   * Kad svi APPROVED postanu DONE/DECLINED, polling se automatski zaustavlja
-   * jer hasActiveOrders postaje false.
-   */
+  const hasOrdersInExecution = orders.some((order) => order.status === OrderStatus.APPROVED);
+
+  useEffect(() => {
+    if (!hasOrdersInExecution) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadOrders(false);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [hasOrdersInExecution, loadOrders]);
 
   useEffect(() => {
     setSelectedOrder((current) =>
@@ -254,6 +271,36 @@ export default function MyOrdersPage() {
           : current
     );
   }, [orders]);
+
+  const handleCancelOrder = useCallback(async () => {
+    if (!orderToCancel) {
+      return;
+    }
+
+    setCancelingOrderId(orderToCancel.id);
+
+    try {
+      await orderService.cancelOrder(orderToCancel.id);
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      toast.success('Order je otkazan');
+      setOrderToCancel(null);
+      await loadOrders(false);
+    } catch {
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      toast.error('Otkazivanje ordera nije uspelo.');
+    } finally {
+      if (isMountedRef.current) {
+        setCancelingOrderId(null);
+      }
+    }
+  }, [loadOrders, orderToCancel]);
 
   const sortedOrders = useMemo(() => {
     const copied = [...orders];
@@ -441,6 +488,10 @@ export default function MyOrdersPage() {
                   <tbody>
                     {sortedOrders.map((order) => {
                       const DirectionIcon = getDirectionIcon(order.direction);
+                      const execution = getOrderExecution(order);
+                      const showExecutionProgress = shouldShowExecutionProgress(order);
+                      const isCancelable = canCancelOrder(order);
+                      const isCanceling = cancelingOrderId === order.id;
 
                       return (
                         <tr
@@ -454,8 +505,8 @@ export default function MyOrdersPage() {
                             </div>
                           </td>
                           <td className="py-3">{ORDER_TYPE_LABELS[order.orderType]}</td>
-                          <td className="py-3">{formatAmount(order.quantity, 0)}</td>
-                          <td className="py-3">{formatAmount(order.pricePerUnit)}</td>
+                          <td className="py-3 font-mono">{formatAmount(order.quantity, 0)}</td>
+                          <td className="py-3 font-mono">{formatAmount(order.pricePerUnit)}</td>
                           <td className="py-3">
                             <div className="inline-flex items-center gap-2">
                               <DirectionIcon
@@ -469,55 +520,48 @@ export default function MyOrdersPage() {
                             </div>
                           </td>
                           <td className="py-3">
-                            <Badge variant={getStatusBadgeVariant(order.status)}>
-                              {STATUS_LABELS[order.status]}
-                            </Badge>
-                            {/*
-                             * TODO [Elena - G1]: EXECUTION PROGRESS BAR
-                             * Ispod Badge-a dodaj progress bar za ordere koji se izvršavaju:
-                             *
-                             * {order.status === 'APPROVED' && order.remainingPortions < order.quantity && (
-                             *   <div className="mt-1">
-                             *     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                             *       <div
-                             *         className="h-full bg-emerald-500 rounded-full transition-all"
-                             *         style={{ width: `${((order.quantity - order.remainingPortions) / order.quantity) * 100}%` }}
-                             *       />
-                             *     </div>
-                             *     <p className="text-[10px] text-muted-foreground mt-0.5">
-                             *       {order.quantity - order.remainingPortions}/{order.quantity}
-                             *     </p>
-                             *   </div>
-                             * )}
-                             */}
+                            <div className="space-y-2">
+                              <Badge variant={getStatusBadgeVariant(order.status)}>
+                                {STATUS_LABELS[order.status]}
+                              </Badge>
+
+                              {showExecutionProgress && (
+                                <div className="max-w-52 space-y-1.5">
+                                  <Progress
+                                    value={execution.progress}
+                                    className="h-2 bg-muted"
+                                    indicatorClassName="bg-emerald-500"
+                                    aria-label={`Izvrsenje ordera ${execution.progress}%`}
+                                  />
+                                  <p className="font-mono text-xs text-muted-foreground">
+                                    Izvrseno: {formatAmount(execution.executed, 0)}/
+                                    {formatAmount(execution.quantity, 0)} ({execution.progress}%)
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3">{formatDateTime(order.createdAt)}</td>
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {/*
-                               * TODO [Elena - G2]: CANCEL ORDER DUGME
-                               * Dodaj dugme "Otkaži" LEVO od "Detalji" za PENDING i APPROVED ordere:
-                               *
-                               * {(order.status === 'PENDING' || order.status === 'APPROVED') && (
-                               *   <Button
-                               *     variant="outline"
-                               *     size="sm"
-                               *     className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                               *     onClick={(e) => {
-                               *       e.stopPropagation();
-                               *       // Otvori confirmation dialog:
-                               *       if (window.confirm('Da li ste sigurni da želite da otkažete ovaj order?')) {
-                               *         orderService.decline(order.id)
-                               *           .then(() => { toast.success('Order je otkazan'); loadOrders(false); })
-                               *           .catch(() => toast.error('Greška pri otkazivanju'));
-                               *       }
-                               *       // BONUS: Zameni window.confirm sa shadcn AlertDialog za bolji UX
-                               *     }}
-                               *   >
-                               *     Otkaži
-                               *   </Button>
-                               * )}
-                               */}
+                              {isCancelable && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => setOrderToCancel(order)}
+                                  disabled={isCanceling}
+                                >
+                                  {isCanceling ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Otkazivanje...
+                                    </>
+                                  ) : (
+                                    'Otkazi'
+                                  )}
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -741,6 +785,58 @@ export default function MyOrdersPage() {
                 </div>
               </div>
             )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={Boolean(orderToCancel)}
+        onOpenChange={(open) => {
+          if (!open && cancelingOrderId == null) {
+            setOrderToCancel(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background shadow-2xl">
+            <div className="space-y-4 p-6">
+              <div className="space-y-2">
+                <Dialog.Title className="text-lg font-semibold">Otkazi nalog</Dialog.Title>
+                <Dialog.Description className="text-sm text-muted-foreground">
+                  Da li ste sigurni da zelite da otkazete nalog{' '}
+                  <span className="font-medium text-foreground">
+                    #{orderToCancel?.id}{' '}
+                    {orderToCancel ? `(${getListingLabel(orderToCancel)})` : ''}
+                  </span>
+                  ?
+                </Dialog.Description>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setOrderToCancel(null)}
+                  disabled={cancelingOrderId != null}
+                >
+                  Odustani
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => void handleCancelOrder()}
+                  disabled={cancelingOrderId != null}
+                >
+                  {cancelingOrderId != null ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Obrada...
+                    </>
+                  ) : (
+                    'Potvrdi otkazivanje'
+                  )}
+                </Button>
+              </div>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
