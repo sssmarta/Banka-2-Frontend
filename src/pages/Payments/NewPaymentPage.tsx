@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
-import { SendHorizonal, Wallet } from 'lucide-react';
+import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -131,10 +131,20 @@ export default function NewPaymentPage() {
   };
 
   const selectedFrom = watch('fromAccountNumber');
-  const fromAccountCurrency = accountLookup.get(selectedFrom)?.currency;
+  const fromAccount = accountLookup.get(selectedFrom);
+  const fromAccountCurrency = fromAccount?.currency;
+
+  // Watch all fields for live preview
+  const watchedAmount = watch('amount');
+  const watchedTo = watch('toAccountNumber');
+  const watchedRecipientName = watch('recipientName');
+  const watchedPurpose = watch('paymentPurpose');
+  const watchedCode = watch('paymentCode');
+  const watchedModel = watch('model');
+  const watchedCallNumber = watch('callNumber');
 
   return (
-    <div className="container mx-auto py-8 max-w-3xl space-y-8">
+    <div className="container mx-auto py-8 max-w-6xl space-y-8">
       {/* Page header */}
       <div className="flex items-center gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
@@ -145,6 +155,11 @@ export default function NewPaymentPage() {
           <p className="text-sm text-muted-foreground">Popunite podatke za kreiranje novog platnog naloga.</p>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+      {/* Left column: Form (2/3 width) */}
+      <div className="lg:col-span-2 space-y-6">
 
       {isLoading ? (
         /* Skeleton loading state */
@@ -355,6 +370,122 @@ export default function NewPaymentPage() {
           </div>
         </form>
       )}
+
+      </div>{/* end left column */}
+
+      {/* Right column: Sticky preview (1/3 width) */}
+      {!isLoading && (
+      <div className="hidden lg:block">
+        <div className="sticky top-6 space-y-4">
+          {/* Live preview card */}
+          <Card className="rounded-2xl border shadow-sm overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-indigo-500 to-violet-600" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <CardTitle className="text-base">Pregled naloga</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* From account */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sa racuna</p>
+                {fromAccount ? (
+                  <div className="rounded-lg border bg-muted/30 p-2.5">
+                    <p className="text-sm font-medium truncate">{fromAccount.name || fromAccount.accountType}</p>
+                    <p className="text-xs font-mono text-muted-foreground">{fromAccount.accountNumber}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Raspolozivo: <span className="font-mono font-semibold text-foreground">{formatAmount(fromAccount.availableBalance)} {fromAccount.currency}</span></p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Nije izabran</p>
+                )}
+              </div>
+
+              {/* Arrow */}
+              {(watchedTo || watchedRecipientName) && (
+                <div className="flex justify-center">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/40">
+                    <ArrowRight className="h-4 w-4 text-indigo-600 dark:text-indigo-400 rotate-90" />
+                  </div>
+                </div>
+              )}
+
+              {/* To account */}
+              {(watchedTo || watchedRecipientName) && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Na racun</p>
+                  <div className="rounded-lg border bg-muted/30 p-2.5">
+                    {watchedRecipientName && (
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        <p className="text-sm font-medium">{watchedRecipientName}</p>
+                      </div>
+                    )}
+                    {watchedTo && <p className="text-xs font-mono text-muted-foreground">{watchedTo}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Amount */}
+              {watchedAmount > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Iznos</p>
+                  <div className="rounded-lg border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-center">
+                    <p className="text-2xl font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
+                      {formatAmount(watchedAmount)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{fromAccountCurrency || 'RSD'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Details */}
+              {(watchedPurpose || watchedCode) && (
+                <div className="space-y-2 pt-1 border-t">
+                  {watchedCode && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5" /> Sifra
+                      </span>
+                      <span className="font-mono">{watchedCode}</span>
+                    </div>
+                  )}
+                  {watchedPurpose && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" /> Svrha
+                      </p>
+                      <p className="text-sm line-clamp-2">{watchedPurpose}</p>
+                    </div>
+                  )}
+                  {watchedModel && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Model</span>
+                      <span className="font-mono">{watchedModel}</span>
+                    </div>
+                  )}
+                  {watchedCallNumber && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Poziv na br.</span>
+                      <span className="font-mono">{watchedCallNumber}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!fromAccount && !watchedTo && !watchedAmount && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground">Popunite formu da vidite pregled naloga.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      )}
+
+      </div>{/* end grid */}
 
       <VerificationModal
         isOpen={showVerification}
