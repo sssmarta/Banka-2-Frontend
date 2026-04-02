@@ -28,8 +28,7 @@ function mapTransferResponse(data: Record<string, unknown>): Transfer {
 export const transactionService = {
   // --- Placanja ---
 
-  createPayment: async (data: NewPaymentRequest): Promise<Transaction> => {
-    // Mapiranje FE polja -> BE polja
+  createPayment: async (data: NewPaymentRequest, otpCode?: string): Promise<Transaction> => {
     const payload = {
       fromAccount: data.fromAccountNumber,
       toAccount: data.toAccountNumber,
@@ -40,6 +39,7 @@ export const transactionService = {
       recipientName: data.recipientName,
       model: data.model,
       callNumber: data.callNumber,
+      otpCode: otpCode || '',
     };
     const response = await api.post<Transaction>('/payments', payload);
     return response.data;
@@ -82,13 +82,13 @@ export const transactionService = {
 
   // --- Prenosi ---
 
-  createTransfer: async (data: TransferRequest): Promise<Transfer> => {
-    const response = await api.post('/transfers/internal', data);
+  createTransfer: async (data: TransferRequest, otpCode?: string): Promise<Transfer> => {
+    const response = await api.post('/transfers/internal', { ...data, otpCode: otpCode || '' });
     return mapTransferResponse(response.data);
   },
 
-  createFxTransfer: async (data: TransferRequest): Promise<Transfer> => {
-    const response = await api.post('/transfers/fx', data);
+  createFxTransfer: async (data: TransferRequest, otpCode?: string): Promise<Transfer> => {
+    const response = await api.post('/transfers/fx', { ...data, otpCode: otpCode || '' });
     return mapTransferResponse(response.data);
   },
 
