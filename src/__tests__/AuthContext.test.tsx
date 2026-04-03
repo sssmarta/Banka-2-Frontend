@@ -1,0 +1,309 @@
+import { render, screen, act, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { Permission } from '../types';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+// Mock authService
+vi.mock('../services/authService', () => ({
+  authService: {
+    login: vi.fn(),
+  },
+}));
+
+// Mock jwt decoder
+vi.mock('../utils/jwt', () => ({
+  decodeJwt: vi.fn(),
+}));
+
+import { authService } from '../services/authService';
+import { decodeJwt } from '../utils/jwt';
+
+// ---------------------------------------------------------------------------
+// Helper: renders a consumer that exposes context values via data-testid
+// ---------------------------------------------------------------------------
+function AuthConsumer() {
+  const { user, isAuthenticated, isAdmin, isLoading, hasPermission, login, logout } = useAuth();
+  return (
+    <div>
+      <span data-testid="authenticated">{String(isAuthenticated)}</span>
+      <span data-testid="isAdmin">{String(isAdmin)}</span>
+      <span data-testid="isLoading">{String(isLoading)}</span>
+      <span data-testid="email">{user?.email ?? ''}</span>
+      <span data-testid="firstName">{user?.firstName ?? ''}</span>
+      <span data-testid="lastName">{user?.lastName ?? ''}</span>
+      <span data-testid="role">{user?.role ?? ''}</span>
+      <span data-testid="hasAdmin">{String(hasPermission(Permission.ADMIN))}</span>
+      <button data-testid="login-btn" onClick={() => login({ email: 'marko.petrovic@banka.rs', password: '123' })} />
+      <button data-testid="logout-btn" onClick={() => logout()} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('AuthContext', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it('throws if useAuth is called outside AuthProvider', () => {
+    // Suppress React error boundary console.error noise
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => render(<AuthConsumer />)).toThrow('useAuth must be used within an AuthProvider');
+    spy.mockRestore();
+  });
+
+  it('starts unauthenticated when sessionStorage is empty', () => {
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('false');
+    expect(screen.getByTestId('isAdmin').textContent).toBe('false');
+    expect(screen.getByTestId('email').textContent).toBe('');
+  });
+
+  it('auto-loads user from sessionStorage on mount', () => {
+    const storedUser = {
+      id: 0,
+      email: 'admin@banka.rs',
+      username: 'admin',
+      firstName: 'Admin',
+      lastName: 'User',
+      role: 'ADMIN',
+      permissions: [Permission.ADMIN],
+    };
+    sessionStorage.setItem('accessToken', 'fake-token');
+    sessionStorage.setItem('user', JSON.stringify(storedUser));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    expect(screen.getByTestId('email').textContent).toBe('admin@banka.rs');
+    expect(screen.getByTestId('isAdmin').textContent).toBe('true');
+  });
+
+  it('clears sessionStorage on invalid stored user JSON', () => {
+    sessionStorage.setItem('accessToken', 'token');
+    sessionStorage.setItem('user', '%%%invalid-json%%%');
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('false');
+    expect(sessionStorage.getItem('accessToken')).toBeNull();
+  });
+
+  it('login sets user state correctly for ADMIN role', async () => {
+    const fakeLoginResponse = {
+      accessToken: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYXJrby5wZXRyb3ZpY0BiYW5rYS5ycyIsInJvbGUiOiJBRE1JTiIsImFjdGl2ZSI6dHJ1ZSwiZXhwIjoxOTk5OTk5OTk5LCJpYXQiOjE3MDA0MzIwMDB9.fake',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+    };
+
+    vi.mocked(authService.login).mockResolvedValue(fakeLoginResponse);
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'marko.petrovic@banka.rs',
+      role: 'ADMIN',
+      active: true,
+      exp: 1999999999,
+      iat: 1700432000,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    });
+
+    expect(screen.getByTestId('email').textContent).toBe('marko.petrovic@banka.rs');
+    expect(screen.getByTestId('firstName').textContent).toBe('Marko');
+    expect(screen.getByTestId('lastName').textContent).toBe('Petrovic');
+    expect(screen.getByTestId('role').textContent).toBe('ADMIN');
+    expect(screen.getByTestId('isAdmin').textContent).toBe('true');
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('true');
+
+    // Verify tokens stored in sessionStorage
+    expect(sessionStorage.getItem('accessToken')).toBe(fakeLoginResponse.accessToken);
+    expect(sessionStorage.getItem('refreshToken')).toBe(fakeLoginResponse.refreshToken);
+    expect(sessionStorage.getItem('user')).toBeTruthy();
+  });
+
+  it('login sets EMPLOYEE as admin-like user', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'tok',
+      refreshToken: 'ref',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'ana.jovic@banka.rs',
+      role: 'EMPLOYEE',
+      active: true,
+      exp: 1999999999,
+      iat: 1700432000,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('isAdmin').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('true');
+  });
+
+  it('login for CLIENT role does not grant admin', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'tok',
+      refreshToken: 'ref',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'klijent@banka.rs',
+      role: 'CLIENT',
+      active: true,
+      exp: 1999999999,
+      iat: 1700432000,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('isAdmin').textContent).toBe('false');
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('false');
+  });
+
+  it('login throws when decodeJwt returns null', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'bad-token',
+      refreshToken: 'ref',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue(null);
+
+    // Use a component that exposes login as a callable to catch the error
+    let loginFn: ((creds: { email: string; password: string }) => Promise<void>) | undefined;
+    function LoginCapture() {
+      const { login } = useAuth();
+      loginFn = login;
+      return null;
+    }
+
+    render(
+      <AuthProvider>
+        <LoginCapture />
+      </AuthProvider>
+    );
+
+    // login() should throw 'Neispravan token' when decodeJwt returns null
+    await expect(loginFn!({ email: 'test@x.rs', password: '123' })).rejects.toThrow('Neispravan token');
+  });
+
+  it('logout clears sessionStorage and user state', async () => {
+    // Start with a logged-in user
+    const storedUser = {
+      id: 0,
+      email: 'test@banka.rs',
+      username: 'test',
+      firstName: 'Test',
+      lastName: 'User',
+      role: 'ADMIN',
+      permissions: [Permission.ADMIN],
+    };
+    sessionStorage.setItem('accessToken', 'token');
+    sessionStorage.setItem('refreshToken', 'rtoken');
+    sessionStorage.setItem('user', JSON.stringify(storedUser));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('true');
+
+    await act(async () => {
+      screen.getByTestId('logout-btn').click();
+    });
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('false');
+    expect(screen.getByTestId('email').textContent).toBe('');
+    expect(sessionStorage.getItem('accessToken')).toBeNull();
+    expect(sessionStorage.getItem('refreshToken')).toBeNull();
+    expect(sessionStorage.getItem('user')).toBeNull();
+  });
+
+  it('hasPermission returns false when no user', () => {
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('false');
+  });
+
+  it('hasPermission returns true when user has the permission', () => {
+    const storedUser = {
+      id: 0,
+      email: 'a@b.rs',
+      username: 'a',
+      firstName: 'A',
+      lastName: 'B',
+      role: 'ADMIN',
+      permissions: [Permission.ADMIN, Permission.TRADE_STOCKS],
+    };
+    sessionStorage.setItem('accessToken', 'tok');
+    sessionStorage.setItem('user', JSON.stringify(storedUser));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('true');
+  });
+});
