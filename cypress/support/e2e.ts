@@ -9,10 +9,12 @@ Cypress.on('uncaught:exception', (_err, _runnable) => {
 
 // Global: intercept common API endpoints to prevent 403/400 noise
 beforeEach(() => {
-  // Only mock auth refresh - prevents redirect loops
+  // Mock auth refresh with a properly decodable JWT - prevents redirect loops
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const payload = btoa(JSON.stringify({ sub: 'test@test.rs', role: 'CLIENT', active: true, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   cy.intercept('POST', '**/api/auth/refresh', {
     statusCode: 200,
-    body: { accessToken: 'fake' },
+    body: { accessToken: `${header}.${payload}.fakesig` },
   });
 
   // Catch-all for common endpoints that pages may call during mount

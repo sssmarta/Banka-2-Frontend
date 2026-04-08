@@ -48,18 +48,7 @@ jobs:
           wait-on: "http://localhost:3000"
           wait-on-timeout: 120
           config: video=false
-          spec: |
-            cypress/e2e/celina1-*.cy.ts
-            cypress/e2e/celina2-accounts-*.cy.ts
-            cypress/e2e/celina2-cards-*.cy.ts
-            cypress/e2e/celina2-employee-*.cy.ts
-            cypress/e2e/celina2-loans-*.cy.ts
-            cypress/e2e/celina2-payments-*.cy.ts
-            cypress/e2e/celina2-transfers-*.cy.ts
-            cypress/e2e/celina2-verification-*.cy.ts
-            cypress/e2e/celina3-*.cy.ts
-            cypress/e2e/celina-complete-*.cy.ts
-            cypress/e2e/celina-missing-*.cy.ts
+          spec: "cypress/e2e/celina1-mock.cy.ts,cypress/e2e/celina2-mock.cy.ts,cypress/e2e/celina3-mock.cy.ts"
 
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v4
@@ -183,7 +172,7 @@ jobs:
           wait-on: "http://localhost"
           wait-on-timeout: 60
           config: video=false,baseUrl=http://localhost
-          spec: cypress/e2e/celina2-live-e2e.cy.ts
+          spec: "cypress/e2e/celina1-live.cy.ts,cypress/e2e/celina2-live.cy.ts,cypress/e2e/celina3-live.cy.ts"
 
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v4
