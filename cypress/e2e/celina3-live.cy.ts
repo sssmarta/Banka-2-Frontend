@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /// <reference types="cypress" />
 /**
  * CELINA 3 - Live E2E Tests (Real Backend)

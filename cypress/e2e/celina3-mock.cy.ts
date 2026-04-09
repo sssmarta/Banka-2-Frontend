@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * CELINA 3 - Mock E2E Tests (Comprehensive)
  * Covers: Securities, Orders, Portfolio, Tax, Exchanges, Actuaries, Margin Accounts
