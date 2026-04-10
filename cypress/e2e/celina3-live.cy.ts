@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 /// <reference types="cypress" />
 /**
  * CELINA 3 - Live E2E Tests (Real Backend)
@@ -48,7 +47,7 @@ function loginAsSupervisor() {
   loginAs('supervisor-c3', 'nikola.milenkovic@banka.rs', 'Zaposleni12', 'EMPLOYEE',
     ['ADMIN', 'SUPERVISOR', 'AGENT', 'TRADE_STOCKS', 'TRADE_FOREX', 'TRADE_FUTURES', 'TRADE_OPTIONS']);
 }
-function loginAsAgent() {
+function _loginAsAgent() {
   loginAs('agent-c3', 'maja.ristic@banka.rs', 'Zaposleni12', 'EMPLOYEE',
     ['AGENT', 'TRADE_STOCKS', 'TRADE_FOREX', 'TRADE_FUTURES', 'TRADE_OPTIONS']);
 }

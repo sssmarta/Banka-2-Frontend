@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 /// <reference types="cypress" />
 /**
  * E2E Scenario: Kompletan radni dan na berzi
