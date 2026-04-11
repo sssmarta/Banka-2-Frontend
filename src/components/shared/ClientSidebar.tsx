@@ -103,9 +103,12 @@ export default function ClientSidebar() {
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => {
-      const links: SidebarItem[] = [
-        { label: 'Dashboard', path: '/employee/dashboard', icon: <TrendingUp className="h-4 w-4" /> },
-      ];
+      const links: SidebarItem[] = [];
+
+      // Dashboard only for supervisors and admins
+      if (isSupervisor) {
+        links.push({ label: 'Dashboard', path: '/employee/dashboard', icon: <TrendingUp className="h-4 w-4" /> });
+      }
 
       // Admin-only links
       if (isAdmin) {

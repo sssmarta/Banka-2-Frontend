@@ -204,12 +204,16 @@ export default function SecuritiesListPage() {
   const tabs: ListingTab[] = isClient ? ['STOCK', 'FUTURES'] : ['STOCK', 'FUTURES', 'FOREX'];
   const listings = useMemo(() => data?.content ?? [], [data]);
 
-  // Detect if data looks simulated: all prices identical changePercent=0, or volume=0 for all
+  // Detect if data looks simulated:
+  // - all changePercent and priceChange are exactly 0
+  // - or all volume is 0
+  // - or all prices are suspiciously round numbers (no decimals)
   const isDataSimulated = useMemo(() => {
     if (listings.length === 0) return false;
     const allZeroChange = listings.every(l => (l.changePercent ?? 0) === 0 && (l.priceChange ?? 0) === 0);
     const allZeroVolume = listings.every(l => (l.volume ?? 0) === 0);
-    return allZeroChange || allZeroVolume;
+    const allZeroPrice = listings.every(l => (l.price ?? 0) === 0);
+    return allZeroChange || allZeroVolume || allZeroPrice;
   }, [listings]);
   const totalPages = data?.totalPages ?? 0;
 

@@ -156,10 +156,8 @@ export default function SecuritiesDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [listing, setListing] = useState<Listing | null>(null);
-  const [history, setHistory] = useState<ListingDailyPrice[]>([]);
   const [period, setPeriod] = useState('MONTH');
   const [loading, setLoading] = useState(true);
-  const [isSimulated, setIsSimulated] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [orderDirection, setOrderDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [orderQuantity, setOrderQuantity] = useState('1');
@@ -178,19 +176,12 @@ export default function SecuritiesDetailsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [l, h] = await Promise.all([
-          listingService.getById(Number(id)),
-          listingService.getHistory(Number(id), period),
-        ]);
-        if (!cancelled) {
-          setListing(l);
-          setHistory(h);
-          setIsSimulated(!h || h.length === 0);
-        }
+        const l = await listingService.getById(Number(id));
+        if (!cancelled) setListing(l);
       } catch {
         if (!cancelled) {
           toast.error('Greska pri ucitavanju detalja hartije');
-          setListing(null); setHistory([]); setIsSimulated(true);
+          setListing(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -198,21 +189,20 @@ export default function SecuritiesDetailsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [id, period]);
+  }, [id]);
 
-  const refreshHistory = useCallback(async () => {
+  const refreshListing = useCallback(async () => {
     if (!id) return;
     setRefreshing(true);
     try {
-      const h = await listingService.getHistory(Number(id), period);
-      setHistory(h);
-      setIsSimulated(!h || h.length === 0);
+      const l = await listingService.getById(Number(id));
+      setListing(l);
     } catch {
       // Keep existing data on refresh failure
     } finally {
       setRefreshing(false);
     }
-  }, [id, period]);
+  }, [id]);
 
   // Load options chain for stocks
   useEffect(() => {
@@ -270,26 +260,17 @@ export default function SecuritiesDetailsPage() {
     };
   }, [selectedChain, strikeCountFilter]);
 
-  // Generate fake data when history is empty; ensure oldest-first order for chart
+  // Build chart data: always generate simulation based on current price + period
+  // API history is too sparse (typically 1-6 points) for a smooth chart
   const chartData = useMemo(() => {
     const periodDays = PERIODS.find(p => p.key === period)?.days ?? 30;
-
-    if (history.length > 0) {
-      // Sort oldest-first for chart display
-      const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // Filter to only show data within the selected period
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - periodDays);
-      const filtered = sorted.filter(d => new Date(d.date).getTime() >= cutoffDate.getTime());
-
-      // Use filtered data if we have any, otherwise use all sorted data
-      return filtered.length > 0 ? filtered : sorted;
-    }
-
     if (!listing) return [];
-    return generateFakeHistory(listing.price, periodDays);
-  }, [history, listing, period]);
+    return generateFakeHistory(listing.price, Math.max(periodDays, 7));
+  }, [listing, period]);
+
+  // Chart always uses simulation (API returns too few data points for smooth chart)
+  // But listing price/bid/ask data in the stats section is from the API (live)
+  const isChartSimulated = true;
 
   const chartDirection = useMemo(() => {
     if (chartData.length < 2) return true;
@@ -390,7 +371,7 @@ export default function SecuritiesDetailsPage() {
                     <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
                     Kretanje cene
                   </CardTitle>
-                  {isSimulated ? (
+                  {isChartSimulated ? (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono text-amber-600 dark:text-amber-400 border-amber-400/40 bg-amber-500/5 gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
                       SIMULIRANI PODACI
@@ -405,7 +386,7 @@ export default function SecuritiesDetailsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={refreshHistory}
+                    onClick={refreshListing}
                     disabled={refreshing}
                     className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
                     title="Osvezi podatke"
@@ -492,9 +473,9 @@ export default function SecuritiesDetailsPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              {isSimulated && (
+              {isChartSimulated && (
                 <p className="text-[10px] text-amber-600/60 dark:text-amber-400/50 text-center mt-2 font-mono">
-                  * Prikazani su simulirani podaci (Geometric Brownian Motion model) jer API trenutno ne vraca istorijske podatke. Podaci su generisani na osnovu trenutne cene sa realisticnom volatilnoscu.
+                  * Grafik koristi simulirane podatke (GBM model, 30% godisnja volatilnost) na osnovu trenutne trzisne cene. Podaci o ceni, bid/ask i volume u sekcijama ispod su stvarni.
                 </p>
               )}
             </CardContent>
