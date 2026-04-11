@@ -24,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+import { useAuth } from '@/context/AuthContext';
 import orderService from '@/services/orderService';
 import actuaryService from '@/services/actuaryService';
 import listingService from '@/services/listingService';
@@ -96,6 +97,8 @@ function TableSkeleton() {
 
 export default function SupervisorDashboardPage() {
   const navigate = useNavigate();
+  const { isSupervisor, isAdmin } = useAuth();
+  const canSeeOrders = isSupervisor || isAdmin;
 
   const [loading, setLoading] = useState(true);
 
@@ -113,57 +116,64 @@ export default function SupervisorDashboardPage() {
     const load = async () => {
       setLoading(true);
 
-      const results = await Promise.allSettled([
-        // 0: Pending orders
-        orderService.getAll('PENDING', 0, 1).then((res) => {
-          setPendingOrders(String(res.totalElements ?? res.content.length));
-        }),
-
-        // 1: Agents
-        actuaryService.getAgents().then((agents) => {
-          setActiveAgents(String(agents.length));
-          setAgentsNearLimit(
-            agents.filter((a) => a.dailyLimit > 0 && a.usedLimit / a.dailyLimit > 0.8)
-          );
-        }),
-
-        // 2: Volume
+      // Supervisor/Admin: load orders, agents, tax
+      // Agent: only load volume (generic stats)
+      const promises: Promise<void>[] = [
+        // 0: Volume (all employees can see)
         listingService.getAll('STOCK', '', 0, 100).then((res) => {
           const total = res.content.reduce((sum, l) => sum + (l.volume ?? 0), 0);
           setDailyVolume(formatVolumeCompact(total));
         }),
+      ];
 
-        // 3: Tax
-        taxService.getTaxRecords().then((records) => {
-          const total = records.reduce((sum, r) => sum + ((r.taxOwed ?? 0) - (r.taxPaid ?? 0)), 0);
-          setUnpaidTax(`${formatAmount(Math.max(0, total))} RSD`);
-        }),
+      if (canSeeOrders) {
+        promises.push(
+          // 1: Pending orders
+          orderService.getAll('PENDING', 0, 1).then((res) => {
+            setPendingOrders(String(res.totalElements ?? res.content.length));
+          }),
+          // 2: Agents
+          actuaryService.getAgents().then((agents) => {
+            setActiveAgents(String(agents.length));
+            setAgentsNearLimit(
+              agents.filter((a) => a.dailyLimit > 0 && a.usedLimit / a.dailyLimit > 0.8)
+            );
+          }),
+          // 3: Tax
+          taxService.getTaxRecords().then((records) => {
+            const total = records.reduce((sum, r) => sum + ((r.taxOwed ?? 0) - (r.taxPaid ?? 0)), 0);
+            setUnpaidTax(`${formatAmount(Math.max(0, total))} RSD`);
+          }),
+          // 4: Recent orders (top 10)
+          orderService.getAll('ALL', 0, 10).then((res) => {
+            setRecentOrders(res.content);
+          }),
+        );
+      }
 
-        // 4: Recent orders (top 10)
-        orderService.getAll('ALL', 0, 10).then((res) => {
-          setRecentOrders(res.content);
-        }),
-      ]);
+      const results = await Promise.allSettled(promises);
 
       // Mark failed fetches with "-"
-      if (results[0].status === 'rejected') setPendingOrders('-');
-      if (results[1].status === 'rejected') {
-        setActiveAgents('-');
-        setAgentsNearLimit([]);
+      if (results[0].status === 'rejected') setDailyVolume('-');
+      if (canSeeOrders) {
+        if (results[1]?.status === 'rejected') setPendingOrders('-');
+        if (results[2]?.status === 'rejected') {
+          setActiveAgents('-');
+          setAgentsNearLimit([]);
+        }
+        if (results[3]?.status === 'rejected') setUnpaidTax('-');
+        if (results[4]?.status === 'rejected') setRecentOrders([]);
       }
-      if (results[2].status === 'rejected') setDailyVolume('-');
-      if (results[3].status === 'rejected') setUnpaidTax('-');
-      if (results[4].status === 'rejected') setRecentOrders([]);
 
       setLoading(false);
     };
 
     load();
-  }, []);
+  }, [canSeeOrders]);
 
   /* --- stat card definitions --- */
   const statCards = [
-    {
+    ...(canSeeOrders ? [{
       label: 'Pending orderi',
       value: pendingOrders,
       color: 'amber',
@@ -174,19 +184,19 @@ export default function SupervisorDashboardPage() {
       value: activeAgents,
       color: 'emerald',
       Icon: Users,
-    },
+    }] : []),
     {
       label: 'Današnji volume',
       value: dailyVolume,
       color: 'indigo',
       Icon: BarChart3,
     },
-    {
+    ...(canSeeOrders ? [{
       label: 'Neplaćen porez',
       value: unpaidTax,
       color: 'rose',
       Icon: Calculator,
-    },
+    }] : []),
   ];
 
   const colorMap: Record<string, { bg: string; text: string; gradient: string }> = {
@@ -214,10 +224,13 @@ export default function SupervisorDashboardPage() {
 
   /* --- quick links --- */
   const quickLinks = [
-    { label: 'Orderi', route: '/employee/orders', Icon: ShoppingCart },
-    { label: 'Aktuari', route: '/employee/actuaries', Icon: TrendingUp },
-    { label: 'Porez', route: '/employee/tax', Icon: Calculator },
+    ...(canSeeOrders ? [
+      { label: 'Orderi', route: '/employee/orders', Icon: ShoppingCart },
+      { label: 'Aktuari', route: '/employee/actuaries', Icon: TrendingUp },
+      { label: 'Porez', route: '/employee/tax', Icon: Calculator },
+    ] : []),
     { label: 'Berze', route: '/employee/exchanges', Icon: Globe },
+    { label: 'Berza', route: '/securities', Icon: TrendingUp },
   ];
 
   return (
@@ -266,8 +279,8 @@ export default function SupervisorDashboardPage() {
         </div>
       )}
 
-      {/* Recent Orders */}
-      {loading ? (
+      {/* Recent Orders — only for supervisors/admins */}
+      {canSeeOrders && (loading ? (
         <TableSkeleton />
       ) : (
         <Card>
@@ -342,10 +355,10 @@ export default function SupervisorDashboardPage() {
             )}
           </CardContent>
         </Card>
-      )}
+      ))}
 
-      {/* Agents Near Limit */}
-      {loading ? (
+      {/* Agents Near Limit — only for supervisors/admins */}
+      {canSeeOrders && (loading ? (
         <TableSkeleton />
       ) : (
         <Card>
@@ -407,7 +420,7 @@ export default function SupervisorDashboardPage() {
             )}
           </CardContent>
         </Card>
-      )}
+      ))}
 
       {/* Quick Links */}
       <div>

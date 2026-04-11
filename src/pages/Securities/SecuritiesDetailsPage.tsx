@@ -42,12 +42,12 @@ import {
 } from '@/components/ui/table';
 
 const PERIODS = [
-  { key: 'DAY', label: '1D', days: 24 },
+  { key: 'DAY', label: '1D', days: 1 },
   { key: 'WEEK', label: '1N', days: 7 },
   { key: 'MONTH', label: '1M', days: 30 },
   { key: 'YEAR', label: '1G', days: 365 },
-  { key: 'FIVE_YEARS', label: '5G', days: 60 },
-  { key: 'ALL', label: 'Sve', days: 120 },
+  { key: 'FIVE_YEARS', label: '5G', days: 1825 },
+  { key: 'ALL', label: 'Sve', days: 3650 },
 ] as const;
 
 function formatVolumeCompact(vol: number | null | undefined): string {
@@ -272,13 +272,22 @@ export default function SecuritiesDetailsPage() {
 
   // Generate fake data when history is empty; ensure oldest-first order for chart
   const chartData = useMemo(() => {
-    if (history.length > 0) {
-      // API may return newest-first; sort by date ascending for chart display
-      const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      return sorted;
-    }
-    if (!listing) return [];
     const periodDays = PERIODS.find(p => p.key === period)?.days ?? 30;
+
+    if (history.length > 0) {
+      // Sort oldest-first for chart display
+      const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Filter to only show data within the selected period
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - periodDays);
+      const filtered = sorted.filter(d => new Date(d.date).getTime() >= cutoffDate.getTime());
+
+      // Use filtered data if we have any, otherwise use all sorted data
+      return filtered.length > 0 ? filtered : sorted;
+    }
+
+    if (!listing) return [];
     return generateFakeHistory(listing.price, periodDays);
   }, [history, listing, period]);
 
