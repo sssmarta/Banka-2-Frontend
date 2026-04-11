@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * CELINA 2 - Mock E2E Tests (Comprehensive)
  * Covers: Accounts, Payments, Transfers, Exchange, Cards, Loans, Employee Portals,

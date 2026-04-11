@@ -341,9 +341,13 @@ export default function HomePage() {
     return 'Dobro vece';
   })();
 
-  // Animated admin counters
+  // Animated counters (must be before any early return — React hooks rules)
   const animatedEmployees = useCountUp(adminStats.loading ? 0 : adminStats.employees);
   const animatedActive = useCountUp(adminStats.loading ? 0 : adminStats.active);
+  const portfolioProfit = portfolioSummary?.totalProfit ?? 0;
+  const portfolioValue = portfolioSummary?.totalValue ?? 0;
+  const paidTax = portfolioSummary?.paidTaxThisYear ?? 0;
+  const animatedPortfolio = useCountUp(employeeLoading ? 0 : Math.round(portfolioValue));
 
   // ──────────────── CLIENT DASHBOARD ────────────────
   if (!isEmployeeRole) return (
@@ -779,10 +783,6 @@ export default function HomePage() {
   );
 
   // ──────────────── EMPLOYEE / ADMIN DASHBOARD ────────────────
-  const portfolioProfit = portfolioSummary?.totalProfit ?? 0;
-  const portfolioValue = portfolioSummary?.totalValue ?? 0;
-  const paidTax = portfolioSummary?.paidTaxThisYear ?? 0;
-  const animatedPortfolio = useCountUp(employeeLoading ? 0 : Math.round(portfolioValue));
   const pendingOrders = recentOrders.filter(o => o.status === 'PENDING').length;
   const approvedOrders = recentOrders.filter(o => o.status === 'APPROVED').length;
   const doneOrders = recentOrders.filter(o => o.status === 'DONE' || o.isDone).length;
