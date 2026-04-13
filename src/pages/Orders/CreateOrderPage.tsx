@@ -383,7 +383,7 @@ export default function CreateOrderPage() {
 
       try {
         const nextAccounts = isEmployeeRole
-          ? asArray<Account>((await accountService.getAll({ page: 0, limit: 100 })).content)
+          ? asArray<Account>(await accountService.getBankAccounts())
           : asArray<Account>(await accountService.getMyAccounts());
 
         if (!mounted) return;
@@ -661,7 +661,7 @@ export default function CreateOrderPage() {
       return;
     }
 
-    if (!isEmployeeUi && !nextOrder.accountId) {
+    if (!nextOrder.accountId) {
       toast.error('Račun je obavezan.');
       return;
     }
@@ -689,8 +689,7 @@ export default function CreateOrderPage() {
       stopValue: pendingOrder.stopValue,
       allOrNone: pendingOrder.allOrNone,
       margin: pendingOrder.margin,
-      // Employees: omit accountId; backend uses bank trading account
-      ...(isEmployeeUi ? {} : { accountId: pendingOrder.accountId }),
+      accountId: pendingOrder.accountId,
     };
 
     setConfirmedDto(dto);

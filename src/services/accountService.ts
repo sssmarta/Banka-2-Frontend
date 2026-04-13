@@ -31,6 +31,11 @@ export const accountService = {
     return response.data;
   },
 
+  getBankAccounts: async (): Promise<Account[]> => {
+    const response = await api.get<Account[]>('/accounts/bank');
+    return response.data;
+  },
+
   // Employee portal - racuni po klijentu
   getByClientId: async (clientId: number): Promise<Account[]> => {
     const response = await api.get<Account[]>(`/accounts/client/${clientId}`);
