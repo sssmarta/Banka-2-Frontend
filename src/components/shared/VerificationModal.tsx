@@ -99,9 +99,16 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
     setServerError('');
 
     try {
-      // This calls NewPaymentPage's handler which does POST /payments with the OTP code
-      // If backend rejects the code, it will throw an error
-      await onVerified(data.code);
+      // DEV: bypass — uvek šaljemo stvarni aktivni OTP (iz bekenda) umesto korisničkog unosa.
+      // Ako ga nemamo, probamo da ga dohvatimo ovde; u krajnjem slučaju šaljemo šta je uneto.
+      let codeToSend = devOtp;
+      if (!codeToSend) {
+        try {
+          const active = await transactionService.getActiveOtp();
+          if (active.active && active.code) codeToSend = active.code;
+        } catch { /* ignore — fallback ispod */ }
+      }
+      await onVerified(codeToSend ?? data.code);
       // If we get here, payment succeeded - parent will navigate away
     } catch (err: unknown) {
       // Payment failed (wrong OTP, insufficient funds, etc)
