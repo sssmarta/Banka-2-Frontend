@@ -1,3 +1,5 @@
+// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
 import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/celina4';
 
@@ -19,9 +21,6 @@ import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/
     ovaj service umesto obicnog paymentService.
   - Po prijemu transactionId-a, prikazi toast "Transakcija u obradi"
     i poll-uj status svakih ~3s dok status ne bude COMMITTED ili ABORTED.
-
- TODO — tipovi:
-  Dodati `InterbankPaymentInitiateRequest` u celina4.ts (postoji vec).
 ================================================================================
 */
 const interbankPaymentService = {
@@ -30,7 +29,7 @@ const interbankPaymentService = {
    * Za OTP flow: backend ce vratiti 403 sa `devOtp` ako OTP nije tacan.
    * FE koristi VerificationModal isti kao za /payments.
    */
-  async initiatePayment(dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
+  async initiatePayment(_dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
     throw new Error('TODO: implementirati initiatePayment');
   },
 
@@ -38,7 +37,7 @@ const interbankPaymentService = {
    * TODO — GET /interbank/payments/{transactionId}
    * Poll-uj dok status nije terminal (COMMITTED/ABORTED/STUCK).
    */
-  async getStatus(transactionId: string): Promise<InterbankPayment> {
+  async getStatus(_transactionId: string): Promise<InterbankPayment> {
     throw new Error('TODO');
   },
 

@@ -1,3 +1,5 @@
+// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
 import type { ActuaryProfit } from '@/types/celina4';
 import type { ClientFundPosition } from '@/types/celina4';

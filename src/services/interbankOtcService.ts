@@ -1,3 +1,5 @@
+// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
 import type {
   OtcInterbankListing,
@@ -35,7 +37,7 @@ const interbankOtcService = {
   },
 
   /** TODO — POST /interbank/otc/offers */
-  async createOffer(dto: CreateOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
+  async createOffer(_dto: CreateOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
     throw new Error('TODO');
   },
 
@@ -45,27 +47,27 @@ const interbankOtcService = {
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/counter */
-  async counterOffer(offerId: string, dto: CounterOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
+  async counterOffer(_offerId: string, _dto: CounterOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
     throw new Error('TODO');
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/decline */
-  async declineOffer(offerId: string): Promise<OtcInterbankOffer> {
+  async declineOffer(_offerId: string): Promise<OtcInterbankOffer> {
     throw new Error('TODO');
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/accept?accountId=X */
-  async acceptOffer(offerId: string, accountId: number): Promise<OtcInterbankOffer> {
+  async acceptOffer(_offerId: string, _accountId: number): Promise<OtcInterbankOffer> {
     throw new Error('TODO');
   },
 
   /** TODO — GET /interbank/otc/contracts/my[?status=...] */
-  async listMyContracts(status?: OtcInterbankOfferStatus | 'ALL'): Promise<unknown[]> {
-    throw new Error('TODO — vrati tip posle potvrde sa BE tim-om (moze da se proširi OtcContract iz celina3.ts sa buyerBankCode/sellerBankCode)');
+  async listMyContracts(_status?: OtcInterbankOfferStatus | 'ALL'): Promise<unknown[]> {
+    throw new Error('TODO — vrati tip posle potvrde sa BE tim-om');
   },
 
   /** TODO — POST /interbank/otc/contracts/{contractId}/exercise?buyerAccountId=X */
-  async exerciseContract(contractId: string, buyerAccountId: number): Promise<unknown> {
+  async exerciseContract(_contractId: string, _buyerAccountId: number): Promise<unknown> {
     throw new Error('TODO');
   },
 };
