@@ -1,3 +1,25 @@
+/*
+  P5-FE TODO — Spec Celina 4 (Nova) §3797-3879:
+  "Ako admin ukloni isSupervisor permisiju supervizoru koji upravlja
+   fondovima, vlasnistvo fondova prebacuje se na tog admina."
+
+  BE strana (P5) je VEC IMPLEMENTIRANA — `EmployeeService.updateEmployee`
+  detektuje uklanjanje SUPERVISOR/ADMIN permisije i poziva
+  `InvestmentFundService.reassignFundManager(oldId, currentAdminId)`.
+
+  FE TREBA:
+   1) Pre submit-a forme proveriti: ako `oldPermissions` sadrzi SUPERVISOR
+      i `newPermissions` ne sadrzi, prikazati confirmation dialog tipa:
+      "Ovaj zaposleni upravlja N fondovima. Uklanjanjem permisije,
+       vlasnistvo se prebacuje na vas (admin)." [Odustani] [Potvrdi]
+   2) Pre prikaza dijaloga povuci broj fondova preko
+      `investmentFundService.listByManager(employeeId)` (BE endpoint TODO).
+   3) Posle uspesnog save-a prikazati toast "Vlasnistvo nad N fondom/ima
+      preneto na vas".
+
+  Marta drzi ovaj task (Issue #78); detaljan __TODO_*.md vec u
+  `pages/Admin/__TODO_EmployeeEditPage_fund_reassign.md`.
+*/
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';

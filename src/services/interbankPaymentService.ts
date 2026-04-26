@@ -3,36 +3,59 @@ import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/
 
 /*
 ================================================================================
- TODO — SERVICE WRAPPER ZA INTER-BANK PLACANJA
- Zaduzen: antonije3
- Spec referenca: Celina 4, linije 368-437 (2PC placanja)
+ INTER-BANK PLACANJA — FE SERVICE WRAPPER (PROTOKOL §2)
+ Spec ref: Info o predmetu/A protocol for bank-to-bank asset exchange.htm,
+           §2 Transaction execution protocol
 --------------------------------------------------------------------------------
- SCOPE:
-  - initiatePayment() salje POST /interbank/payments/initiate
-  - getStatus() poll-uje /interbank/payments/{id}
-  - myHistory() prikazuje listu svih korisnikovih inter-bank placanja
+ ARHITEKTURA (POSLE PROTOKOL REFAKTORA, BE):
+  Klijent (FE) NIKAD ne komunicira direktno sa drugom bankom — uvek ide
+  preko nase BE. BE strana (TransactionExecutorService) odlucuje da li je
+  receiver lokalni (intra-bank, postojeci flow) ili remote (inter-bank,
+  protokol §2.8.5 Remote transaction execution).
 
- INTEGRACIJA SA POSTOJECIM PAYMENT FLOW-OM:
-  - Na PaymentCreatePage-u (ili Transfers page), kad korisnik unese
-    receiverAccountNumber, FE proverava prve 3 cifre. Ako su razlicite
-    od naseg prefixa (222) → prebaci se u inter-bank mode i koristi
-    ovaj service umesto obicnog paymentService.
-  - Po prijemu transactionId-a, prikazi toast "Transakcija u obradi"
-    i poll-uj status svakih ~3s dok status ne bude COMMITTED ili ABORTED.
+ NAPOMENA O ENDPOINT-IMA:
+  Stari TODO endpoint-i (`/interbank/payments/initiate`) su uklonjeni iz
+  BE-a jer protokol rezervise URL prefix `/interbank` strogo za poruke
+  IZMEDJU banaka (POST /interbank, GET /negotiations/*, ...).
+  Klijentski (FE -> BE) pozivi treba da idu na druge URL-ove:
+
+   POST /api/payments              — vec postoji (paymentService.create);
+                                     BE detektuje inter-bank receiver po
+                                     prefiksu broja racuna (BankRoutingService)
+                                     i prosledjuje u TransactionExecutorService
+   GET  /api/payments/my           — istorija (postoji)
+   GET  /api/interbank-tx/{id}     — TODO: novi endpoint za poll status
+                                     distribuirane transakcije po protokolu
+                                     (mapira na InterbankTransaction.status)
+
+ STATUS:
+  Ovaj servis se moze obrisati — NewPaymentPage treba da koristi obicni
+  paymentService.create i samo poll-uje /api/interbank-tx/{id} ako BE vraca
+  202 Accepted ili tx.status != COMMITTED. Zadrzano je za sada da bi FE
+  testovi i dalje prolazili dok BE ne implementira novi flow.
+
+ TODO (FE tim):
+  1. Obrisi ovaj fajl
+  2. Migriraj NewPaymentPage na paymentService.create + interbank poll
+  3. Obrisi InterbankPayment / InterbankPaymentInitiateRequest tipove iz
+     types/celina4.ts (zameni sa standardnim Payment tipom)
 ================================================================================
 */
 const interbankPaymentService = {
   async initiatePayment(dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
+    // TODO: zameni sa paymentService.create(...) — BE detektuje inter-bank po prefiksu
     const response = await api.post<InterbankPayment>('/interbank/payments/initiate', dto);
     return response.data;
   },
 
   async getStatus(transactionId: string): Promise<InterbankPayment> {
+    // TODO: zameni sa /api/interbank-tx/{transactionId}
     const response = await api.get<InterbankPayment>(`/interbank/payments/${transactionId}`);
     return response.data;
   },
 
   async myHistory(): Promise<InterbankPayment[]> {
+    // TODO: zameni sa paymentService.myHistory() filtriran po remote-flag-u
     const response = await api.get<InterbankPayment[]>('/interbank/payments/my');
     return response.data;
   },

@@ -229,6 +229,15 @@ export default function OtcOffersAndContractsPage() {
         </div>
       </div>
 
+      {/*
+        P12 — TODO (opciono po spec-u, Celina 4 (Nova) §2011-2095):
+        Indikator broja neprocitanih pregovora. Spec sugerise dva nacina:
+          a) modifiedBy != trenutni korisnik => neprocitano
+          b) Discord-stil lastEntranceTimestamp; pregovori izmenjeni posle
+             tog trenutka su neprocitani.
+        Implementacija (kad dodjemo): localStorage.setItem('otc:lastEntrance', now)
+        pri ucitavanju stranice; brojac na TabsTrigger-u u Badge-u.
+      */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList>
           <TabsTrigger value="offers-local">
@@ -562,8 +571,6 @@ export default function OtcOffersAndContractsPage() {
         <OtcInterBankContractsTab />
       </TabsContent>
       </Tabs>
-
-      {tab === 'contracts-remote' && <OtcInterBankContractsTab />}
 
       {accounts.length === 0 && (
         <Alert variant="warning">

@@ -95,16 +95,29 @@ export default function ClientSidebar() {
     []
   );
 
+  // OTC linkovi: po Celini 4 (Nova) §145-148, samo SUPERVIZORI (od zaposlenih)
+  // i KLIJENTI sa permisijom TRADE_STOCKS smeju da vide. Agenti ne.
+  const perms: string[] = Array.isArray(user?.permissions) ? (user!.permissions as string[]) : [];
+  const isAgent = perms.includes('AGENT') && !isSupervisor && !isAdmin;
+  const canAccessOtc = !isAgent && (isSupervisor || isAdmin || role === 'CLIENT');
+
   const tradingLinks: SidebarItem[] = useMemo(
-    () => [
-      { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
-      { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
-      { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
-      { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
-      { label: 'OTC ponude i ugovori', path: '/otc/offers', icon: <ScrollText className="h-4 w-4" /> },
-      { label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> },
-    ],
-    []
+    () => {
+      const base: SidebarItem[] = [
+        { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
+        { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
+        { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
+      ];
+      if (canAccessOtc) {
+        base.push(
+          { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
+          { label: 'OTC ponude i ugovori', path: '/otc/offers', icon: <ScrollText className="h-4 w-4" /> },
+        );
+      }
+      base.push({ label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> });
+      return base;
+    },
+    [canAccessOtc]
   );
 
   const employeeLinks: SidebarItem[] = useMemo(
@@ -138,11 +151,10 @@ export default function ClientSidebar() {
           { label: 'Orderi', path: '/employee/orders', icon: <ShoppingCart className="h-4 w-4" /> },
           { label: 'Aktuari', path: '/employee/actuaries', icon: <TrendingUp className="h-4 w-4" /> },
           { label: 'Porez', path: '/employee/tax', icon: <Calculator className="h-4 w-4" /> },
+          { label: 'Profit Banke', path: '/employee/profit-bank', icon: <Landmark className="h-4 w-4" /> },
           // Napomena: "Kreiraj fond" se pristupa preko /funds stranice (dugme gore desno).
           // Zaseban sidebar link napravio bi koliziju sa postojecim Cypress regex
           // testovima (/novi|dodaj|kreiraj/i) na Admin Employee flow-u.
-          // TODO — CELINA 4 PROFIT BANKE (zaduzen: sssmarta)
-          //   { label: 'Profit Banke', path: '/employee/profit-bank', icon: <Landmark className="h-4 w-4" /> },
         );
       }
 

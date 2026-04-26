@@ -11,23 +11,43 @@ import type {
 
 /*
 ================================================================================
- TODO — SERVICE WRAPPER ZA OTC INTER-BANK (PREGOVARANJE + SAGA)
- Zaduzen: ekalajdzic13322
- Spec referenca: Celina 4, linije 438-519
+ OTC INTER-BANK — FE SERVICE WRAPPER (PROTOKOL §3)
+ Spec ref: Info o predmetu/A protocol for bank-to-bank asset exchange.htm,
+           §3 OTC negotiation protocol
 --------------------------------------------------------------------------------
- Paralelno sa intra-bank `otcService.ts`, ali gadja `/interbank/otc/**`
- endpointe. Koristi se na tabu "Iz drugih banaka" na OtcTrgovinaPage i
- OtcOffersAndContractsPage.
+ ARHITEKTURA (POSLE PROTOKOL REFAKTORA, BE):
+  Klijent (FE) komunicira sa nasim BE-om; BE preko OtcNegotiationService
+  poziva drugu banku po §3.1-3.7 (POST /negotiations, GET /public-stock,
+  GET /negotiations/{rn}/{id}/accept, ...).
 
- Key endpointi:
-   GET   /interbank/otc/listings
-   POST  /interbank/otc/offers
-   GET   /interbank/otc/offers/my
-   PATCH /interbank/otc/offers/{offerId}/counter
-   PATCH /interbank/otc/offers/{offerId}/decline
-   PATCH /interbank/otc/offers/{offerId}/accept?accountId=X
-   GET   /interbank/otc/contracts/my?status=...
-   POST  /interbank/otc/contracts/{contractId}/exercise?buyerAccountId=X
+ NAPOMENA O ENDPOINT-IMA:
+  Stari TODO endpoint-i (`/interbank/otc/**`) su uklonjeni iz BE-a jer
+  protokol rezervise URL prefix `/negotiations`, `/public-stock`, `/user`
+  STROGO za pozive IZMEDJU banaka. Klijentski (FE -> BE) pozivi treba da
+  idu na nase interne URL-ove:
+
+   GET   /api/otc/remote-listings        — TODO BE: agregacija fetchRemotePublicStocks
+                                            iz svih partnera; vraca Stock + lista bank-prodavac
+   POST  /api/otc/remote-offers          — TODO BE: kreiraj pregovor
+                                            (BE pozove POST /negotiations partnera)
+   PUT   /api/otc/remote-offers/{id}     — TODO BE: counter-offer
+                                            (BE pozove PUT /negotiations/{rn}/{id})
+   DELETE /api/otc/remote-offers/{id}    — TODO BE: zatvori
+                                            (BE pozove DELETE /negotiations/{rn}/{id})
+   POST  /api/otc/remote-offers/{id}/accept
+                                          — TODO BE: prihvati
+                                            (BE pozove GET /negotiations/{rn}/{id}/accept,
+                                             ceka COMMITTED)
+   GET   /api/otc/remote-contracts/my    — TODO BE: moji inter-bank ugovori
+
+ ID FORMAT (§2.3):
+  ForeignBankId u protokolu = {routingNumber, id}. Na FE-u koristimo
+  serijalizaciju "123:abc-uuid" (routingNumber:id). BE parsira pri prijemu.
+
+ STATUS:
+  Endpoint-i ispod jos nisu redefinisani — prikazuju primere koje koristi
+  postojeci FE kod. BE tim ce pri implementaciji refaktorisati URL-ove
+  prema protokolu, FE prati.
 ================================================================================
 */
 const interbankOtcService = {

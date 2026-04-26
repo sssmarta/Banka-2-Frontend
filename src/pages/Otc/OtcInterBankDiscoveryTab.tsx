@@ -34,6 +34,23 @@ type OfferFormState = {
 const getListingKey = (listing: OtcInterbankListing) =>
   `${listing.bankCode}:${listing.sellerPublicId}:${listing.listingTicker}`;
 
+/*
+  P8 — TODO ROLE FILTER (Spec Celina 5 (Nova) §840-848):
+  "Klijenti vide ponude Klijenata, Aktuari vide ponude Aktuara."
+
+  Trenutno: FE prikazuje sve ponude koje BE vrati. Posto profesorov protokol
+  HTML §3.1 (`GET /public-stock`) ne nudi role discovery (`PublicStock.sellers`
+  ima samo `ForeignBankId` koji je opaque), filter se moze uraditi tek na
+  jedan od ova 4 nacina (vidi InterbankClient.fetchPublicStocks TODO blok):
+    a) BE filter sa /user/{rn}/{id} po-seller (sporo, N+1)
+    b) FE filter ako partner banka u extension polju vrati seller userRole
+    c) Konvencija ID prefiksa (npr. "C-" / "E-")
+    d) Postaviti pri acceptOffer-u: server vraca 400 ako role-mismatch
+
+  PRIVREMENO: prikazujemo sve. Kupac koji pokusa cross-role accept ce dobiti
+  IllegalArgumentException 400 iz `OtcService.ensureSameRoleParticipants` — vec
+  pokriveno kroz P2.
+*/
 export default function OtcInterBankDiscoveryTab() {
   const [listings, setListings] = useState<OtcInterbankListing[]>([]);
   const [loading, setLoading] = useState(true);

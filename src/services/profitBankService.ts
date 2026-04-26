@@ -1,39 +1,23 @@
-// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
-import type { ActuaryProfit } from '@/types/celina4';
-import type { ClientFundPosition } from '@/types/celina4';
+import type { ActuaryProfit, ClientFundPosition } from '@/types/celina4';
 
-/*
-================================================================================
- TODO — SERVICE WRAPPER ZA PORTAL "PROFIT BANKE"
- Zaduzen: sssmarta
- Spec referenca: Celina 4, linije 353-364
---------------------------------------------------------------------------------
- Samo za supervizore. Dva endpointa:
-   GET /profit-bank/actuary-performance  — spisak aktuara sa profitom
-   GET /profit-bank/fund-positions       — bankine pozicije u fondovima
-
- Napomena za tim:
-  - Ako ovo nije u scope-u za KT3, server moze vraciti 501 / 403;
-    handler treba graceful error.
-================================================================================
-*/
+/**
+ * P6 — Spec Celina 4 (Nova) §4393-4645: Portal "Profit Banke" za supervizore.
+ *
+ * Dva endpointa:
+ *   GET /profit-bank/actuary-performance  — spisak aktuara + profit u RSD
+ *   GET /profit-bank/fund-positions       — fondovi u kojima banka ima udele
+ *                                           (ClientFundPosition sa userId = ownerClientId banke)
+ */
 const profitBankService = {
-  /**
-   * TODO — GET /profit-bank/actuary-performance
-   * Povlaci spisak svih aktuara + njihov profit u RSD (+ pozicija).
-   */
   async listActuaryPerformance(): Promise<ActuaryProfit[]> {
-    throw new Error('TODO: implementirati profitBankService.listActuaryPerformance');
+    const { data } = await api.get<ActuaryProfit[]>('/profit-bank/actuary-performance');
+    return data;
   },
 
-  /**
-   * TODO — GET /profit-bank/fund-positions
-   * Fondovi u kojima banka ima udele (ClientFundPosition sa userRole=BANK).
-   */
   async listBankFundPositions(): Promise<ClientFundPosition[]> {
-    throw new Error('TODO');
+    const { data } = await api.get<ClientFundPosition[]>('/profit-bank/fund-positions');
+    return data;
   },
 };
 
