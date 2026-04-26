@@ -563,6 +563,8 @@ export default function OtcOffersAndContractsPage() {
       </TabsContent>
       </Tabs>
 
+      {tab === 'contracts-remote' && <OtcInterBankContractsTab />}
+
       {accounts.length === 0 && (
         <Alert variant="warning">
           <AlertCircle className="h-4 w-4" />
