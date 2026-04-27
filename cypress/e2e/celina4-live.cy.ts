@@ -582,7 +582,7 @@ describe('Live C4: Inter-bank Payments', () => {
   }
 
   it('L42: Placanje na 111... racun - inter-bank routing', () => {
-    cy.intercept('POST', '/api/interbank/payments/initiate').as('interbankInit');
+    cy.intercept('POST', '/api/payments').as('interbankInit');
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000001');
 
@@ -618,7 +618,7 @@ describe('Live C4: Inter-bank Payments', () => {
   });
 
   it('L44: Placanje na 222... racun - intra-bank (ne inter)', () => {
-    cy.intercept('POST', '/api/interbank/payments/initiate').as('interbankInit');
+    cy.intercept('GET', '/api/interbank/payments/*').as('interbankStatus');
     cy.intercept('POST', '/api/payments').as('intraPayment');
     cy.visit('/payments/new');
     fillPaymentForm('222000000000000001');
@@ -631,7 +631,7 @@ describe('Live C4: Inter-bank Payments', () => {
     });
 
     cy.wait(1000);
-    cy.get('@interbankInit.all').should('have.length', 0);
+    cy.get('@interbankStatus.all').should('have.length', 0);
     cy.get('@intraPayment.all').then((calls) => {
       if (!calls || calls.length === 0) {
         cy.contains(/TODO|Greška|Greska|nije uspelo|Novi platni nalog/i).should('be.visible');
