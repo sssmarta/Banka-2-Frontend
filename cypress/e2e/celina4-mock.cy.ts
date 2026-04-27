@@ -48,8 +48,7 @@ import {
   setupAdminSession,
   setupClientSession,
   setupSupervisorSession,
-  // TODO(tim): otkomentarisi setupAgentSession kad ti zatreba Agent sesija u TODO testu
-  // setupAgentSession,
+  setupAgentSession,
 } from '../support/commands';
 
 // ============================================================
@@ -1679,10 +1678,69 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
 //  FEATURE 13: HomePage C4 tile-ovi (Issue #79 / sssmarta)
 // ============================================================
 describe('Mock C4: HomePage Dashboard Tiles', () => {
-  it.skip('TODO S69: Supervisor vidi "Profit Banke" i "Investicioni fondovi" tile-ove', () => {});
-  it.skip('TODO S70: Klijent vidi samo "Investicioni fondovi"', () => {});
-  it.skip('TODO S71: Agent vidi "Investicioni fondovi"', () => {});
-  it.skip('TODO S72: Klik na tile navigira na pravu rutu', () => {});
+  const mockHomeData = () => {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] }).as('myAccounts');
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] }).as('recipients');
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] }).as('rates');
+    cy.intercept('GET', '**/api/payments*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('payments');
+    cy.intercept('GET', '**/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 0, totalProfit: 0, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    }).as('portfolioSummary');
+    cy.intercept('GET', '**/api/orders/my*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('myOrders');
+    cy.intercept('GET', '**/api/employees*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('employees');
+    cy.intercept('GET', '**/api/loans*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('loans');
+  };
+
+  it('S69: Supervisor vidi "Profit Banke" i "Investicioni fondovi" tile-ove', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Profit Banke').should('be.visible');
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('S70: Klijent vidi samo "Investicioni fondovi"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+    cy.get('main').should('not.contain', 'Profit Banke');
+  });
+
+  it('S71: Agent vidi "Investicioni fondovi"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupAgentSession });
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+    cy.get('main').should('not.contain', 'Profit Banke');
+  });
+
+  it('S72: Klik na tile navigira na pravu rutu', () => {
+    mockHomeData();
+    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: [] }).as('funds');
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Investicioni fondovi').click();
+    cy.url().should('include', '/funds');
+    cy.wait('@funds');
+
+    cy.intercept('GET', '/api/profit-bank/actuary-performance', { statusCode: 200, body: [] }).as('actuaries');
+    cy.intercept('GET', '/api/profit-bank/fund-positions', { statusCode: 200, body: [] }).as('bankFunds');
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Profit Banke').click();
+    cy.url().should('include', '/employee/profit-bank');
+    cy.wait('@actuaries');
+    cy.wait('@bankFunds');
+  });
 });
 
 
@@ -1690,10 +1748,55 @@ describe('Mock C4: HomePage Dashboard Tiles', () => {
 //  FEATURE 14: Sidebar linkovi (Issue #79 / sssmarta)
 // ============================================================
 describe('Mock C4: Sidebar C4 Links', () => {
-  it.skip('TODO S73: "Investicioni fondovi" link pod Berza sekcijom', () => {});
-  it.skip('TODO S74: "Profit Banke" link samo za supervizora', () => {});
-  it.skip('TODO S75: Klijent NE vidi "Profit Banke"', () => {});
-  it.skip('TODO S76: Agent NE vidi "Profit Banke"', () => {});
+  const mockHomeData = () => {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payments*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 0, totalProfit: 0, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    });
+    cy.intercept('GET', '**/api/orders/my*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/employees*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/loans*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+  };
+
+  it('S73: "Investicioni fondovi" link pod Berza sekcijom', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('nav').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('S74: "Profit Banke" link samo za supervizora', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('nav').contains('Profit Banke').should('be.visible');
+  });
+
+  it('S75: Klijent NE vidi "Profit Banke"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('nav').should('not.contain', 'Profit Banke');
+  });
+
+  it('S76: Agent NE vidi "Profit Banke"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupAgentSession });
+    cy.get('nav').should('not.contain', 'Profit Banke');
+  });
 });
 
 /*
