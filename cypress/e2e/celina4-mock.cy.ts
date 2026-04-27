@@ -1499,19 +1499,19 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
     cy.get('@intraPayment.all').should('have.length', 0);
   });
 
-  it('S64: Salje POST /interbank/payments/initiate', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', (req) => {
-      expect(req.body.receiverAccountNumber).to.equal('111000000000000002');
+  it('S64: Salje POST /payments', () => {
+    cy.intercept('POST', '**/api/payments', (req) => {
+      expect(req.body.toAccount).to.equal('111000000000000002');
       req.reply({
         statusCode: 200,
         body: {
           id: 2,
           transactionId: 'tx-s64',
           status: 'INITIATED',
-          senderAccountNumber: req.body.senderAccountNumber,
-          receiverAccountNumber: req.body.receiverAccountNumber,
+          senderAccountNumber: req.body.fromAccount,
+          receiverAccountNumber: req.body.toAccount,
           amount: req.body.amount,
-          currency: req.body.currency,
+          currency: 'RSD',
           createdAt: '2026-04-25T10:00:00',
         },
       });
@@ -1539,7 +1539,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
 
   it('S65: Modal prikazuje fazu (INITIATED → PREPARING → ... → COMMITTED)', () => {
     let statusCall = 0;
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 3,
@@ -1582,7 +1582,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
 
   it('S66: Polling na svakih 3s', () => {
     let statusCall = 0;
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 4,
@@ -1624,7 +1624,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
   });
 
   it('S67: ABORTED - prikazuje failureReason', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 5,
@@ -1661,7 +1661,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
   });
 
   it('S68: Intra-bank (222...) ide standard flow, ne interbank', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', { statusCode: 200, body: {} }).as('interbankInit');
+    cy.intercept('GET', '**/api/interbank/payments/*').as('interbankStatus');
     cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
@@ -1669,7 +1669,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
     cy.wait('@recipients');
     fillMandatoryPaymentFields('222000000000000001');
     cy.wait('@intraPayment');
-    cy.get('@interbankInit.all').should('have.length', 0);
+    cy.get('@interbankStatus.all').should('have.length', 0);
   });
 });
 
