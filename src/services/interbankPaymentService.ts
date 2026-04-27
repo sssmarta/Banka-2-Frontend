@@ -69,7 +69,7 @@ const interbankPaymentService = {
 
   async getStatus(transactionId: string): Promise<InterbankPayment> {
     // TODO: zameni sa /api/interbank-tx/{transactionId}
-    const response = await api.get<InterbankPayment>(`/interbank/payments/${transactionId}`);
+    const response = await api.get<InterbankPayment>(`/interbank-tx/${transactionId}`);
     return response.data;
   },
 

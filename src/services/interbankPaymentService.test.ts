@@ -49,7 +49,7 @@ describe('interbankPaymentService', () => {
     expect(result).toEqual(payment);
   });
 
-  it('getStatus sends GET /interbank/payments/{txId}', async () => {
+  it('getStatus sends GET /interbank-tx/{txId}', async () => {
     const statusPayload = {
       id: 1,
       transactionId: 'tx-1',
@@ -64,7 +64,7 @@ describe('interbankPaymentService', () => {
 
     const result = await interbankPaymentService.getStatus('tx-1');
 
-    expect(mockedApi.get).toHaveBeenCalledWith('/interbank/payments/tx-1');
+    expect(mockedApi.get).toHaveBeenCalledWith('/interbank-tx/tx-1');
     expect(result).toEqual(statusPayload);
   });
 
