@@ -222,4 +222,59 @@ describe('investmentFundService', () => {
       await expect(investmentFundService.bankPositions()).rejects.toThrow('Forbidden');
     });
   });
+
+  // ==================== listByManager ====================
+
+  describe('listByManager', () => {
+    it('should return funds managed by the given employee', async () => {
+      const summaries = [
+        { id: 1, name: 'Alpha' },
+        { id: 2, name: 'Beta' },
+        { id: 3, name: 'Gamma' },
+      ];
+      const detail1 = { id: 1, name: 'Alpha', managerEmployeeId: 5 };
+      const detail2 = { id: 2, name: 'Beta', managerEmployeeId: 7 };
+      const detail3 = { id: 3, name: 'Gamma', managerEmployeeId: 5 };
+
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url === '/funds') return Promise.resolve({ data: summaries });
+        if (url === '/funds/1') return Promise.resolve({ data: detail1 });
+        if (url === '/funds/2') return Promise.resolve({ data: detail2 });
+        if (url === '/funds/3') return Promise.resolve({ data: detail3 });
+        return Promise.reject(new Error('Unexpected URL: ' + url));
+      });
+
+      const result = await investmentFundService.listByManager(5);
+
+      expect(result).toHaveLength(2);
+      expect(result.map((f) => f.id).sort()).toEqual([1, 3]);
+    });
+
+    it('should return empty array for invalid id', async () => {
+      const result1 = await investmentFundService.listByManager(0);
+      const result2 = await investmentFundService.listByManager(-1);
+      const result3 = await investmentFundService.listByManager(NaN);
+
+      expect(result1).toEqual([]);
+      expect(result2).toEqual([]);
+      expect(result3).toEqual([]);
+      expect(mockedApi.get).not.toHaveBeenCalled();
+    });
+
+    it('should swallow errors on individual fund detail fetch', async () => {
+      const summaries = [
+        { id: 1, name: 'Alpha' },
+        { id: 2, name: 'Beta' },
+      ];
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url === '/funds') return Promise.resolve({ data: summaries });
+        if (url === '/funds/1') return Promise.resolve({ data: { id: 1, managerEmployeeId: 5 } });
+        if (url === '/funds/2') return Promise.reject(new Error('Server error'));
+        return Promise.reject(new Error('Unexpected URL'));
+      });
+
+      const result = await investmentFundService.listByManager(5);
+      expect(result.map((f) => f.id)).toEqual([1]);
+    });
+  });
 });

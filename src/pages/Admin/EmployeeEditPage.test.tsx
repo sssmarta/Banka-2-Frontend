@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EmployeeEditPage from './EmployeeEditPage';
 import { renderWithProviders } from '../../test/test-utils';
@@ -20,12 +20,19 @@ vi.mock('react-router-dom', async () => {
 const mockGetById = vi.fn();
 const mockUpdate = vi.fn();
 const mockDeactivate = vi.fn();
+const mockListByManager = vi.fn();
 
 vi.mock('../../services/employeeService', () => ({
   employeeService: {
     getById: (...args: unknown[]) => mockGetById(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
     deactivate: (...args: unknown[]) => mockDeactivate(...args),
+  },
+}));
+
+vi.mock('../../services/investmentFundService', () => ({
+  default: {
+    listByManager: (...args: unknown[]) => mockListByManager(...args),
   },
 }));
 
@@ -55,6 +62,7 @@ const mockEmployee: Employee = {
 describe('EmployeeEditPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListByManager.mockResolvedValue([]);
   });
 
   it('shows loading skeleton while fetching', () => {
@@ -335,5 +343,159 @@ describe('EmployeeEditPage', () => {
       expect(screen.getByText(/opasna zona/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/deaktivacija zaposlenog/i)).toBeInTheDocument();
+  });
+
+  // ─── Spec Celina 4 (Nova) §3797-3879 — fund reassign confirmation dialog ───
+  describe('fund reassign confirmation', () => {
+    const supervisorEmployee: Employee = {
+      ...mockEmployee,
+      permissions: [Permission.SUPERVISOR, Permission.ADMIN],
+    };
+
+    it('does not fetch funds for non-supervisor employees', async () => {
+      mockGetById.mockResolvedValueOnce(mockEmployee);
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+
+      expect(mockListByManager).not.toHaveBeenCalled();
+    });
+
+    it('fetches managed funds when employee has SUPERVISOR permission', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([
+        { id: 1, name: 'Alpha Fund', managerEmployeeId: 5 },
+        { id: 2, name: 'Beta Fund', managerEmployeeId: 5 },
+      ]);
+
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalledWith(5);
+      });
+    });
+
+    it('shows confirmation dialog with fund names when removing SUPERVISOR with funds', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([
+        { id: 1, name: 'Alpha Fund', managerEmployeeId: 5 },
+        { id: 2, name: 'Beta Fund', managerEmployeeId: 5 },
+      ]);
+
+      const user = userEvent.setup();
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+
+      // Wait until funds are loaded so dialog has its list
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalled();
+      });
+
+      // Uncheck SUPERVISOR permission
+      await user.click(screen.getByLabelText(Permission.SUPERVISOR));
+
+      // Save
+      await user.click(screen.getByRole('button', { name: /sacuvaj izmene/i }));
+
+      // Dialog should appear with fund details
+      const dialog = await screen.findByTestId('reassign-funds-dialog');
+      expect(dialog).toHaveTextContent(/upravlja sa\s+2\s+fondova/i);
+      expect(dialog).toHaveTextContent(/Alpha Fund/);
+      expect(dialog).toHaveTextContent(/Beta Fund/);
+
+      // PATCH must NOT have been called yet (we are awaiting confirmation)
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('confirms the dialog and calls update', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([
+        { id: 1, name: 'Alpha Fund', managerEmployeeId: 5 },
+      ]);
+      mockUpdate.mockResolvedValueOnce(supervisorEmployee);
+
+      const user = userEvent.setup();
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByLabelText(Permission.SUPERVISOR));
+      await user.click(screen.getByRole('button', { name: /sacuvaj izmene/i }));
+      await screen.findByTestId('reassign-funds-dialog');
+
+      await user.click(screen.getByRole('button', { name: /^potvrdi$/i }));
+
+      await waitFor(() => {
+        expect(mockUpdate).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('cancels the dialog and does NOT call update; restores SUPERVISOR checkbox', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([
+        { id: 1, name: 'Alpha Fund', managerEmployeeId: 5 },
+      ]);
+
+      const user = userEvent.setup();
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByLabelText(Permission.SUPERVISOR));
+      await user.click(screen.getByRole('button', { name: /sacuvaj izmene/i }));
+      await screen.findByTestId('reassign-funds-dialog');
+
+      const dialog = screen.getByTestId('reassign-funds-dialog');
+      const cancelBtn = within(dialog).getByRole('button', { name: /^otkazi$/i });
+      await user.click(cancelBtn);
+
+      expect(mockUpdate).not.toHaveBeenCalled();
+
+      // SUPERVISOR checkbox should be restored to checked
+      await waitFor(() => {
+        const checkbox = screen.getByLabelText(Permission.SUPERVISOR) as HTMLInputElement;
+        expect(checkbox.getAttribute('aria-checked')).toBe('true');
+      });
+    });
+
+    it('does not show dialog when supervisor manages no funds', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([]);
+      mockUpdate.mockResolvedValueOnce(supervisorEmployee);
+
+      const user = userEvent.setup();
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByLabelText(Permission.SUPERVISOR));
+      await user.click(screen.getByRole('button', { name: /sacuvaj izmene/i }));
+
+      // No dialog, update called directly
+      expect(screen.queryByTestId('reassign-funds-dialog')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockUpdate).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });
