@@ -33,13 +33,14 @@ type OpenState =
 
 type Props = {
   onAcceptedOffer?: () => void;
+  onUnreadChange?: (count: number) => void;
 };
 
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background';
 
-export default function OtcInterBankOffersTab({ onAcceptedOffer }: Props) {
-  const { isAdmin, isAgent, isSupervisor } = useAuth();
+export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange }: Props) {
+  const { user, isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
 
   const [offers, setOffers] = useState<OtcInterbankOffer[]>([]);
@@ -83,6 +84,36 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer }: Props) {
     () => offers.filter((offer) => offer.status === 'ACTIVE'),
     [offers],
   );
+
+  // Spec Celina 4 (Nova) §2011-2095: brojac neprocitanih inter-bank pregovora
+  // (Discord-stil — pregovori izmenjeni posle prethodnog ulaska na stranicu).
+  // Tab parent (OtcOffersAndContractsPage) drzi `otc:lastEntrance` u localStorage-u.
+  useEffect(() => {
+    if (!onUnreadChange) return;
+    if (loadingOffers) return;
+
+    let lastEntranceTs = 0;
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('otc:lastEntrance');
+        const parsed = raw ? Number(raw) : 0;
+        if (Number.isFinite(parsed)) lastEntranceTs = parsed;
+      }
+    } catch {
+      lastEntranceTs = 0;
+    }
+
+    // Heuristika: ako je sad moj red, znaci da je druga banka/strana
+    // poslednja izmenila pregovor — i ako je izmena posle prethodnog
+    // ulaska na stranicu, racunamo to kao "neprocitano".
+    const unread = activeOffers.filter((offer) => {
+      if (!offer.myTurn) return false;
+      const ts = Date.parse(offer.lastModifiedAt);
+      return Number.isFinite(ts) && ts > lastEntranceTs;
+    }).length;
+
+    onUnreadChange(unread);
+  }, [activeOffers, loadingOffers, user?.id, onUnreadChange]);
 
   const pickMatchingAccount = (currency: string): Account | undefined =>
     accounts.find((account) => account.currency === currency) ?? accounts[0];

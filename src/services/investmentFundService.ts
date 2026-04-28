@@ -66,6 +66,24 @@ const investmentFundService = {
     const { data } = await api.get<ClientFundPosition[]>('/funds/bank-positions');
     return data;
   },
+
+  /**
+   * Vraca fondove kojima upravlja zadat zaposleni. BE jos uvek nema namenski
+   * endpoint, pa filtriramo lokalno preko `list()`. Spec Celina 4 (Nova)
+   * §3797-3879: kad admin ukloni isSupervisor permisiju supervizoru koji
+   * upravlja fondovima, FE prikazuje confirmation dialog pre nego sto BE
+   * automatski prebaci vlasnistvo na admina.
+   */
+  async listByManager(employeeId: number): Promise<InvestmentFundDetail[]> {
+    if (!Number.isFinite(employeeId) || employeeId <= 0) return [];
+    const summaries = await this.list();
+    const details = await Promise.all(
+      summaries.map((summary) =>
+        this.get(summary.id).catch(() => null),
+      ),
+    );
+    return details.filter((d): d is InvestmentFundDetail => d != null && d.managerEmployeeId === employeeId);
+  },
 };
 
 export default investmentFundService;

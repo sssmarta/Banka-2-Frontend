@@ -1,33 +1,22 @@
 /*
-  P5-FE TODO — Spec Celina 4 (Nova) §3797-3879:
+  Spec Celina 4 (Nova) §3797-3879:
   "Ako admin ukloni isSupervisor permisiju supervizoru koji upravlja
    fondovima, vlasnistvo fondova prebacuje se na tog admina."
 
-  BE strana (P5) je VEC IMPLEMENTIRANA — `EmployeeService.updateEmployee`
-  detektuje uklanjanje SUPERVISOR/ADMIN permisije i poziva
-  `InvestmentFundService.reassignFundManager(oldId, currentAdminId)`.
-
-  FE TREBA:
-   1) Pre submit-a forme proveriti: ako `oldPermissions` sadrzi SUPERVISOR
-      i `newPermissions` ne sadrzi, prikazati confirmation dialog tipa:
-      "Ovaj zaposleni upravlja N fondovima. Uklanjanjem permisije,
-       vlasnistvo se prebacuje na vas (admin)." [Odustani] [Potvrdi]
-   2) Pre prikaza dijaloga povuci broj fondova preko
-      `investmentFundService.listByManager(employeeId)` (BE endpoint TODO).
-   3) Posle uspesnog save-a prikazati toast "Vlasnistvo nad N fondom/ima
-      preneto na vas".
-
-  Marta drzi ovaj task (Issue #78); detaljan __TODO_*.md vec u
-  `pages/Admin/__TODO_EmployeeEditPage_fund_reassign.md`.
+  BE: `EmployeeService.updateEmployee` detektuje uklanjanje SUPERVISOR/ADMIN
+  permisije i automatski poziva `InvestmentFundService.reassignFundManager(...)`.
+  FE samo treba potvrdu pre PATCH-a kako admin ne bi slucajno preoteo fondove.
 */
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, Save, Loader2, User, Phone, Briefcase, Shield, UserX, Mail, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Phone, Briefcase, Shield, UserX, Mail, AlertTriangle, PiggyBank } from 'lucide-react';
 import { editEmployeeSchema, type EditEmployeeFormData } from '../../utils/validationSchemas';
 import { employeeService } from '../../services/employeeService';
+import investmentFundService from '../../services/investmentFundService';
 import type { Employee } from '../../types';
+import type { InvestmentFundDetail } from '@/types/celina4';
 import { Permission } from '../../types';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
@@ -53,6 +42,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
+import * as Dialog from '@radix-ui/react-dialog';
 
 const ALL_PERMISSIONS = Object.values(Permission);
 
@@ -127,6 +117,9 @@ export default function EmployeeEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [managedFunds, setManagedFunds] = useState<InvestmentFundDetail[]>([]);
+  const [pendingFormData, setPendingFormData] = useState<EditEmployeeFormData | null>(null);
+  const [showReassignDialog, setShowReassignDialog] = useState(false);
 
   const {
     register,
@@ -159,6 +152,17 @@ export default function EmployeeEditPage() {
           gender: data.gender,
           department: data.department,
         });
+
+        // Spec Celina 4 (Nova) §3797-3879: ako edited employee upravlja
+        // fondovima, treba nam broj fondova radi confirmation dialoga.
+        if ((data.permissions ?? []).includes(Permission.SUPERVISOR)) {
+          try {
+            const funds = await investmentFundService.listByManager(data.id);
+            setManagedFunds(funds);
+          } catch {
+            setManagedFunds([]);
+          }
+        }
       } catch {
         setError('Greska pri ucitavanju podataka o zaposlenom.');
       } finally {
@@ -177,7 +181,7 @@ export default function EmployeeEditPage() {
     );
   };
 
-  const onSubmit = async (data: EditEmployeeFormData) => {
+  const performUpdate = async (data: EditEmployeeFormData) => {
     if (!id) return;
 
     setSaving(true);
@@ -194,6 +198,12 @@ export default function EmployeeEditPage() {
       }
       await employeeService.update(Number(id), updateData);
 
+      const removedSupervisor =
+        (employee?.permissions ?? []).includes(Permission.SUPERVISOR) &&
+        !permissions.includes(Permission.SUPERVISOR);
+      if (removedSupervisor && managedFunds.length > 0) {
+        toast.success(`Vlasnistvo nad ${managedFunds.length} fondom preneto na vas.`);
+      }
       toast.success('Zaposleni uspesno azuriran!');
       navigate('/admin/employees');
     } catch (err: unknown) {
@@ -202,6 +212,41 @@ export default function EmployeeEditPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const onSubmit = async (data: EditEmployeeFormData) => {
+    if (!id) return;
+
+    const oldPermissions = employee?.permissions ?? [];
+    const isRemovingSupervisor =
+      oldPermissions.includes(Permission.SUPERVISOR) &&
+      !permissions.includes(Permission.SUPERVISOR);
+
+    if (isRemovingSupervisor && managedFunds.length > 0) {
+      setPendingFormData(data);
+      setShowReassignDialog(true);
+      return;
+    }
+
+    await performUpdate(data);
+  };
+
+  const handleConfirmReassign = async () => {
+    setShowReassignDialog(false);
+    if (pendingFormData) {
+      const data = pendingFormData;
+      setPendingFormData(null);
+      await performUpdate(data);
+    }
+  };
+
+  const handleCancelReassign = () => {
+    setShowReassignDialog(false);
+    setPendingFormData(null);
+    // Vrati SUPERVISOR permisiju u checked stanje da bi user video da je odustao.
+    setPermissions((prev) =>
+      prev.includes(Permission.SUPERVISOR) ? prev : [...prev, Permission.SUPERVISOR],
+    );
   };
 
   if (loading) {
@@ -578,6 +623,63 @@ export default function EmployeeEditPage() {
           </div>
         </div>
       </form>
+
+      <Dialog.Root
+        open={showReassignDialog}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) handleCancelReassign();
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content
+            className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background shadow-2xl"
+            data-testid="reassign-funds-dialog"
+          >
+            <div className="flex items-start gap-3 border-b p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/40">
+                <PiggyBank className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <Dialog.Title className="text-lg font-semibold">
+                  Prebacivanje vlasnistva nad fondovima
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                  Ovaj supervizor upravlja sa{' '}
+                  <span className="font-semibold">{managedFunds.length}{' '}
+                    {managedFunds.length === 1 ? 'fondom' : 'fondova'}
+                  </span>
+                  . Uklanjanjem permisije, vlasnistvo se prebacuje na vas.
+                </Dialog.Description>
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto border-b px-6 py-4">
+              <ul className="space-y-1 text-sm">
+                {managedFunds.map((fund) => (
+                  <li key={fund.id} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <span className="font-medium">{fund.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2 p-6">
+              <Button type="button" variant="outline" onClick={handleCancelReassign}>
+                Otkazi
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmReassign}
+                className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold"
+              >
+                Potvrdi
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

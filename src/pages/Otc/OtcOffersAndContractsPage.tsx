@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollText, Zap, Reply, X, Check, AlertCircle } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
@@ -63,6 +63,26 @@ export default function OtcOffersAndContractsPage() {
   const [openedOfferId, setOpenedOfferId] = useState<number | null>(null);
 
   const [previousEntranceTs, setPreviousEntranceTs] = useState(0);
+  const [viewedTabs, setViewedTabs] = useState<Set<Tab>>(() => new Set<Tab>());
+  const [remoteUnread, setRemoteUnread] = useState(0);
+
+  const markTabViewed = useCallback((value: Tab) => {
+    setViewedTabs((prev) => {
+      if (prev.has(value)) return prev;
+      const next = new Set(prev);
+      next.add(value);
+      return next;
+    });
+  }, []);
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      const t = value as Tab;
+      setTab(t);
+      markTabViewed(t);
+    },
+    [markTabViewed],
+  );
 
   const reloadOffers = async () => {
     setLoadingOffers(true);
@@ -255,29 +275,36 @@ export default function OtcOffersAndContractsPage() {
       </div>
 
       {/*
-        P12 — TODO (opciono po spec-u, Celina 4 (Nova) §2011-2095):
-        Indikator broja neprocitanih pregovora. Spec sugerise dva nacina:
-          a) modifiedBy != trenutni korisnik => neprocitano
-          b) Discord-stil lastEntranceTimestamp; pregovori izmenjeni posle
-             tog trenutka su neprocitani.
-        Implementacija (kad dodjemo): localStorage.setItem('otc:lastEntrance', now)
-        pri ucitavanju stranice; brojac na TabsTrigger-u u Badge-u.
+        Spec Celina 4 (Nova) §2011-2095 — Indikator broja neprocitanih
+        pregovora (Discord-stil). `otc:lastEntrance` u localStorage-u je
+        timestamp prethodnog ulaska; pregovori izmenjeni posle tog trenutka
+        racuni se kao neprocitani. Brojac se prikazuje kao Badge na tabu
+        i resetuje se kad korisnik klikne na taj tab.
       */}
-      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+      <Tabs value={tab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger
-            value="offers-local"
-            title={unreadOffersCount > 0 ? `${unreadOffersCount} neprocitanih pregovora` : undefined}
-          >
+          <TabsTrigger value="offers-local">
             Aktivne ponude (intra-bank)
             {activeOffers.length > 0 && (
               <Badge variant="secondary" className="ml-2">
                 {activeOffers.length}
               </Badge>
             )}
+            {unreadOffersCount > 0 && !viewedTabs.has('offers-local') && (
+              <Badge variant="warning" className="ml-2" data-testid="unread-offers-local">
+                {unreadOffersCount} novih
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="contracts-local">Sklopljeni ugovori (intra-bank)</TabsTrigger>
-          <TabsTrigger value="offers-remote">Aktivne ponude (inter-bank)</TabsTrigger>
+          <TabsTrigger value="offers-remote">
+            Aktivne ponude (inter-bank)
+            {remoteUnread > 0 && !viewedTabs.has('offers-remote') && (
+              <Badge variant="warning" className="ml-2" data-testid="unread-offers-remote">
+                {remoteUnread} novih
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="contracts-remote">Sklopljeni ugovori (inter-bank)</TabsTrigger>
         </TabsList>
 
@@ -592,7 +619,13 @@ export default function OtcOffersAndContractsPage() {
       </TabsContent>
 
       <TabsContent value="offers-remote" className="pt-6">
-        <OtcInterBankOffersTab onAcceptedOffer={() => setTab('contracts-remote')} />
+        <OtcInterBankOffersTab
+          onAcceptedOffer={() => {
+            setTab('contracts-remote');
+            markTabViewed('contracts-remote');
+          }}
+          onUnreadChange={setRemoteUnread}
+        />
       </TabsContent>
 
       <TabsContent value="contracts-remote" className="pt-6">
