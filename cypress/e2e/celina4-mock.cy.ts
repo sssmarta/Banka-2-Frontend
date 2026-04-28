@@ -1463,7 +1463,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
   }
 
   it('S63: Detekcija inter-bank po prve 3 cifre (ne 222)', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 1,
@@ -1476,7 +1476,8 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         createdAt: '2026-04-25T10:00:00',
       },
     }).as('initInterbank');
-    cy.intercept('GET', '**/api/interbank/payments/tx-s63', {
+
+    cy.intercept('GET', '**/api/interbank-tx/tx-s63', {
       statusCode: 200,
       body: {
         id: 1,
@@ -1488,15 +1489,16 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         currency: 'RSD',
         createdAt: '2026-04-25T10:00:00',
       },
-    });
-    cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
+    }).as('statusPoll');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
     fillMandatoryPaymentFields('111000000000000001');
     cy.wait('@initInterbank');
-    cy.get('@intraPayment.all').should('have.length', 0);
+    cy.wait('@statusPoll');
+    cy.contains('Inter-bank status').should('be.visible');
+    cy.contains('tx-s63').should('be.visible');
   });
 
   it('S64: Salje POST /payments', () => {
