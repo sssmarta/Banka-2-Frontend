@@ -618,7 +618,7 @@ describe('Live C4: Inter-bank Payments', () => {
   });
 
   it('L44: Placanje na 222... racun - intra-bank (ne inter)', () => {
-    cy.intercept('GET', '/api/interbank-tx/*').as('interbankStatus');
+    cy.intercept('GET', /\/api\/payments\/\d+$/).as('interbankStatus');
     cy.intercept('POST', '/api/payments').as('intraPayment');
     cy.visit('/payments/new');
     fillPaymentForm('222000000000000001');
