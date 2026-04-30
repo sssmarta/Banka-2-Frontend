@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ArbitroProvider } from './context/ArbitroContext';
 import App from './App';
 
 createRoot(document.getElementById('root')!).render(
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ArbitroProvider>
+            <App />
+          </ArbitroProvider>
         </AuthProvider>
         <ToastContainer position="bottom-right" autoClose={4000} />
       </BrowserRouter>

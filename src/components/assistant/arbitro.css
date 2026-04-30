@@ -1,0 +1,1117 @@
+/* Arbitro AI assistant — Liquid Glass UI
+   ----------------------------------------
+   Layered translucent surfaces, animated gradient mesh, backdrop-blur,
+   gradient borders. Inspirisano sa Apple Vision Pro / iOS 18 liquid glass +
+   2026 dark glassmorphism trend.
+*/
+
+@keyframes arbitro-mesh-drift {
+  0%, 100% { transform: translate(0%, 0%) rotate(0deg); }
+  25%      { transform: translate(8%, -4%) rotate(2deg); }
+  50%      { transform: translate(-4%, 6%) rotate(-1deg); }
+  75%      { transform: translate(-6%, -2%) rotate(1deg); }
+}
+
+@keyframes arbitro-pulse-glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.95; transform: scale(1.08); }
+}
+
+@keyframes arbitro-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes arbitro-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* === FAB ============================================================== */
+/* NAPOMENA: Tailwind `fixed` class na <button> koristi se za pozicioniranje;
+   ovde NE setujemo position jer bi se override-ovao Tailwind utility (oba
+   single-class specificity). Sve unutrasnje pseudo-elementi koriste isolate. */
+.arbitro-fab {
+  isolation: isolate;
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.95) 0%,
+    rgba(139, 92, 246, 0.95) 50%,
+    rgba(168, 85, 247, 0.95) 100%);
+  box-shadow:
+    0 8px 32px -8px rgba(99, 102, 241, 0.55),
+    0 4px 12px -4px rgba(139, 92, 246, 0.45),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 320ms ease;
+}
+
+.arbitro-fab::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg,
+    rgba(99, 102, 241, 0.4),
+    rgba(168, 85, 247, 0.4),
+    rgba(236, 72, 153, 0.4),
+    rgba(99, 102, 241, 0.4));
+  filter: blur(10px);
+  z-index: -1;
+  opacity: 0.65;
+  animation: arbitro-pulse-glow 3s ease-in-out infinite;
+}
+
+.arbitro-fab:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 12px 48px -8px rgba(99, 102, 241, 0.65),
+    0 8px 16px -4px rgba(139, 92, 246, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.15);
+}
+
+/* === Panel ============================================================ */
+/* NAPOMENA: position se postavlja kroz Tailwind class na elementu (npr. fixed
+   ili absolute za drawer). Ovde NE override-ujemo da Tailwind utility-i rade. */
+.arbitro-panel {
+  isolation: isolate;
+  background: linear-gradient(160deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(248, 250, 255, 0.62) 100%);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 32px 64px -16px rgba(15, 23, 42, 0.25),
+    0 16px 32px -8px rgba(99, 102, 241, 0.18),
+    0 4px 12px -2px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+  animation: arbitro-fade-in-up 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .arbitro-panel {
+  background: linear-gradient(160deg,
+    rgba(24, 24, 32, 0.72) 0%,
+    rgba(15, 15, 22, 0.62) 100%);
+  border-color: rgba(99, 102, 241, 0.18);
+  box-shadow:
+    0 32px 64px -16px rgba(0, 0, 0, 0.55),
+    0 16px 32px -8px rgba(99, 102, 241, 0.25),
+    0 4px 12px -2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Animirani gradient mesh u pozadini panela — daje "alive" feel */
+.arbitro-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(236, 72, 153, 0.16) 0%, transparent 50%);
+  filter: blur(40px);
+  opacity: 0.85;
+  z-index: -1;
+  animation: arbitro-mesh-drift 18s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.dark .arbitro-panel::before {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.42) 0%, transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.32) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(236, 72, 153, 0.26) 0%, transparent 50%);
+  opacity: 0.6;
+}
+
+/* Subtle noise overlay — daje organic teksturu staklu (bez slike, SVG inline) */
+.arbitro-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dark .arbitro-panel::after {
+  opacity: 0.08;
+}
+
+/* === Header ========================================================== */
+.arbitro-header {
+  position: relative;
+  /* Header MORA da bude iznad body-ja (poruke, composer) — inace
+     Settings dropdown koji se otvara apsolutno padne ispod scroll
+     liste poruka. Eksplicitan stacking context (z-index + isolation). */
+  z-index: 30;
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.08) 0%,
+    rgba(168, 85, 247, 0.06) 50%,
+    rgba(236, 72, 153, 0.04) 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.14);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.dark .arbitro-header {
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.18) 0%,
+    rgba(168, 85, 247, 0.14) 50%,
+    rgba(236, 72, 153, 0.10) 100%);
+  border-bottom-color: rgba(99, 102, 241, 0.22);
+}
+
+/* === Avatar (Bot ikona u krugu) ====================================== */
+.arbitro-avatar {
+  position: relative;
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 1) 0%,
+    rgba(139, 92, 246, 1) 50%,
+    rgba(168, 85, 247, 1) 100%);
+  box-shadow:
+    0 4px 16px -4px rgba(99, 102, 241, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.15);
+}
+
+.arbitro-avatar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0) 50%);
+  pointer-events: none;
+}
+
+/* === Status indicator ================================================ */
+.arbitro-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.arbitro-status-dot.online {
+  background: rgb(34, 197, 94);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+}
+
+.arbitro-status-dot.online::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: rgba(34, 197, 94, 0.4);
+  animation: arbitro-pulse-glow 2s ease-in-out infinite;
+}
+
+.arbitro-status-dot.offline {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+/* === Header buttons ================================================== */
+.arbitro-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: rgba(71, 85, 105, 0.85);
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: all 200ms ease;
+}
+
+.arbitro-header-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: rgb(99, 102, 241);
+  transform: translateY(-1px);
+}
+
+.dark .arbitro-header-btn {
+  color: rgba(203, 213, 225, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .arbitro-header-btn:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: rgb(196, 181, 253);
+}
+
+.arbitro-header-btn.danger:hover {
+  color: rgb(244, 63, 94);
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+/* === Bubble: USER ==================================================== */
+.arbitro-bubble-user {
+  position: relative;
+  background: linear-gradient(135deg,
+    rgb(99, 102, 241) 0%,
+    rgb(139, 92, 246) 50%,
+    rgb(168, 85, 247) 100%);
+  color: white;
+  border-radius: 18px 18px 4px 18px;
+  padding: 10px 14px;
+  box-shadow:
+    0 4px 16px -4px rgba(99, 102, 241, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  animation: arbitro-fade-in-up 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arbitro-bubble-user::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0) 60%);
+  pointer-events: none;
+}
+
+/* === Bubble: ASSISTANT =============================================== */
+.arbitro-bubble-assistant {
+  position: relative;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 36px 10px 14px;
+  box-shadow:
+    0 4px 12px -3px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+  animation: arbitro-fade-in-up 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .arbitro-bubble-assistant {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgb(241, 245, 249);
+  box-shadow:
+    0 4px 12px -3px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* === Tool indicator pill ============================================= */
+.arbitro-tool {
+  display: flex;
+  align-items: stretch;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 240ms ease;
+}
+
+.arbitro-tool:hover {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.dark .arbitro-tool {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: rgb(203, 213, 225);
+}
+
+.dark .arbitro-tool:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+/* === Source attribution badge ======================================== */
+.arbitro-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.1) 0%,
+    rgba(168, 85, 247, 0.08) 100%);
+  color: rgb(99, 102, 241);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.dark .arbitro-source {
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.18) 0%,
+    rgba(168, 85, 247, 0.14) 100%);
+  color: rgb(196, 181, 253);
+  border-color: rgba(99, 102, 241, 0.32);
+}
+
+/* === Composer ======================================================== */
+.arbitro-composer {
+  position: relative;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.55) 30%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.dark .arbitro-composer {
+  background: linear-gradient(180deg,
+    rgba(15, 15, 22, 0) 0%,
+    rgba(15, 15, 22, 0.6) 30%);
+  border-top-color: rgba(99, 102, 241, 0.18);
+}
+
+.arbitro-textarea {
+  background: rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgb(15, 23, 42);
+  resize: none;
+  transition: all 200ms ease;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+  /* Sakrij scrollbar (oba — vertikalan i strelice gore/dole) */
+  scrollbar-width: none;             /* Firefox */
+  -ms-overflow-style: none;          /* legacy IE/Edge */
+}
+
+/* WebKit (Chrome/Safari/Edge) — totalno ukloni scrollbar i strelice */
+.arbitro-textarea::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.arbitro-textarea::-webkit-scrollbar-button {
+  display: none;
+}
+
+.arbitro-textarea::placeholder {
+  color: rgba(100, 116, 139, 0.7);
+}
+
+.arbitro-textarea:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+}
+
+.dark .arbitro-textarea {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgb(241, 245, 249);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.dark .arbitro-textarea::placeholder {
+  color: rgba(148, 163, 184, 0.5);
+}
+
+.dark .arbitro-textarea:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.arbitro-send-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg,
+    rgb(99, 102, 241) 0%,
+    rgb(139, 92, 246) 50%,
+    rgb(168, 85, 247) 100%);
+  color: white;
+  box-shadow:
+    0 4px 12px -2px rgba(99, 102, 241, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-send-btn:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow:
+    0 6px 20px -2px rgba(99, 102, 241, 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.arbitro-send-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.arbitro-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.arbitro-stop-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg,
+    rgb(244, 63, 94) 0%,
+    rgb(225, 29, 72) 100%);
+  color: white;
+  box-shadow:
+    0 4px 12px -2px rgba(244, 63, 94, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  animation: arbitro-pulse-glow 1.5s ease-in-out infinite;
+}
+
+/* === Quick prompt chip =============================================== */
+.arbitro-chip {
+  position: relative;
+  padding: 7px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(99, 102, 241);
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow:
+    0 2px 8px -2px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+  transition: all 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 16px -4px rgba(99, 102, 241, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+}
+
+.dark .arbitro-chip {
+  color: rgb(196, 181, 253);
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.32);
+  box-shadow:
+    0 2px 8px -2px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.dark .arbitro-chip:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow:
+    0 6px 16px -4px rgba(99, 102, 241, 0.45),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* === Hint tooltip ==================================================== */
+.arbitro-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  background: linear-gradient(135deg,
+    rgba(15, 23, 42, 0.92) 0%,
+    rgba(30, 27, 75, 0.92) 100%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  box-shadow:
+    0 8px 24px -4px rgba(99, 102, 241, 0.4),
+    0 4px 8px -2px rgba(0, 0, 0, 0.2);
+  animation: arbitro-fade-in-up 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* === Empty state header ============================================== */
+.arbitro-empty-title {
+  background: linear-gradient(135deg,
+    rgb(99, 102, 241) 0%,
+    rgb(168, 85, 247) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+/* === Scrollbar (panel body) ========================================== */
+.arbitro-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+}
+
+.arbitro-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.arbitro-scroll::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 9999px;
+}
+
+.arbitro-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+.arbitro-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* === Thinking phrase rotator ========================================= */
+.arbitro-thinking-phrase {
+  animation: arbitro-fade-in-up 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* === Thinking indicator (3 dot pulse) ================================ */
+.arbitro-thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(168, 85, 247));
+  animation: arbitro-pulse-glow 1.4s ease-in-out infinite;
+}
+
+.arbitro-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.arbitro-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* === Code block u markdown porukama ================================== */
+.arbitro-bubble-assistant code {
+  background: rgba(99, 102, 241, 0.12);
+  color: rgb(99, 102, 241);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.85em;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.dark .arbitro-bubble-assistant code {
+  background: rgba(99, 102, 241, 0.2);
+  color: rgb(196, 181, 253);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* === Action button (#action:goto:) =================================== */
+.arbitro-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg,
+    rgb(99, 102, 241) 0%,
+    rgb(139, 92, 246) 50%,
+    rgb(168, 85, 247) 100%);
+  box-shadow:
+    0 3px 10px -2px rgba(99, 102, 241, 0.45),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-action-btn:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    0 5px 14px -2px rgba(99, 102, 241, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+
+/* === PHASE 4 v3.5 — Agentic mode ====================================== */
+
+.arbitro-agentic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: white;
+  background: linear-gradient(135deg, rgb(245, 158, 11), rgb(251, 113, 133));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 2px 5px rgba(245, 158, 11, 0.4);
+  animation: arbitro-agentic-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes arbitro-agentic-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 2px 5px rgba(245, 158, 11, 0.4),
+      0 0 0 0 rgba(245, 158, 11, 0.6);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      0 2px 5px rgba(245, 158, 11, 0.4),
+      0 0 0 6px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Settings dropdown panel */
+.arbitro-settings-dropdown {
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    0 20px 40px -10px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  animation: arbitro-fade-in-up 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dark .arbitro-settings-dropdown {
+  background: rgba(24, 24, 27, 0.92);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow:
+    0 20px 40px -10px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Action confirmation modal */
+.arbitro-action-modal {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow:
+    0 30px 70px -10px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+  isolation: isolate;
+}
+
+.dark .arbitro-action-modal {
+  background: rgba(15, 15, 20, 0.94);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow:
+    0 30px 70px -10px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.arbitro-action-icon {
+  background: linear-gradient(135deg,
+    rgb(99, 102, 241) 0%,
+    rgb(139, 92, 246) 50%,
+    rgb(168, 85, 247) 100%);
+  box-shadow:
+    0 4px 12px -2px rgba(99, 102, 241, 0.45),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+
+/* === PHASE 5 — Voice INPUT (Web Speech API) =========================== */
+
+.arbitro-mic-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: rgb(99, 102, 241);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-mic-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 3px 8px -2px rgba(99, 102, 241, 0.25);
+}
+
+.dark .arbitro-mic-btn {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: rgb(196, 181, 253);
+}
+
+.dark .arbitro-mic-btn:hover {
+  background: rgba(99, 102, 241, 0.22);
+}
+
+/* Listening state — pulsing crveni glow */
+.arbitro-mic-listening {
+  background: linear-gradient(135deg, rgb(244, 63, 94), rgb(225, 29, 72)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: white !important;
+  animation: arbitro-mic-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes arbitro-mic-pulse {
+  0%, 100% {
+    box-shadow:
+      0 3px 8px -2px rgba(244, 63, 94, 0.4),
+      0 0 0 0 rgba(244, 63, 94, 0.6);
+  }
+  50% {
+    box-shadow:
+      0 3px 12px -2px rgba(244, 63, 94, 0.5),
+      0 0 0 8px rgba(244, 63, 94, 0);
+  }
+}
+
+/* Textarea visual feedback dok se snima */
+.arbitro-textarea-listening {
+  border-color: rgba(244, 63, 94, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1) !important;
+}
+
+/* === Phase 5 Multi-step plan badge ==================================== */
+.arbitro-step-badge {
+  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(139, 92, 246));
+  color: white;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 2px 4px rgba(99, 102, 241, 0.4);
+}
+
+/* === Phase 5 Tutorial overlay ========================================= */
+.arbitro-tutorial {
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.94) 0%,
+    rgba(139, 92, 246, 0.94) 50%,
+    rgba(168, 85, 247, 0.94) 100%);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  animation: arbitro-fade-in-up 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-tutorial-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 20px 40px -10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+}
+
+.arbitro-tutorial-icon {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+    0 4px 12px -2px rgba(0, 0, 0, 0.2);
+}
+
+.arbitro-tutorial-next {
+  background: white;
+  color: rgb(99, 102, 241);
+  box-shadow:
+    0 4px 10px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arbitro-tutorial-next:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 14px -2px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+/* === Phase 4.5 — Wizard choice card =================================== */
+.arbitro-choice-card {
+  border-radius: 1rem;
+  background: linear-gradient(160deg,
+    rgba(99, 102, 241, 0.06) 0%,
+    rgba(168, 85, 247, 0.05) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  padding: 0.75rem;
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    0 8px 18px -4px rgba(99, 102, 241, 0.18),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+  animation: arbitro-fade-in-up 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dark .arbitro-choice-card {
+  background: linear-gradient(160deg,
+    rgba(99, 102, 241, 0.14) 0%,
+    rgba(168, 85, 247, 0.10) 100%);
+  border-color: rgba(99, 102, 241, 0.28);
+  box-shadow:
+    0 8px 18px -4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.arbitro-choice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.arbitro-choice-step {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(99, 102, 241);
+  background: rgba(99, 102, 241, 0.12);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+.dark .arbitro-choice-step {
+  color: rgb(165, 180, 252);
+  background: rgba(99, 102, 241, 0.22);
+}
+.arbitro-choice-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(63, 63, 70);
+}
+.dark .arbitro-choice-title { color: rgb(228, 228, 231); }
+
+.arbitro-choice-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: rgb(161, 161, 170);
+  transition: 200ms;
+}
+.arbitro-choice-cancel:hover {
+  background: rgba(244, 63, 94, 0.1);
+  color: rgb(225, 29, 72);
+}
+
+.arbitro-choice-previous {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-bottom: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 0.5rem;
+  font-size: 11px;
+  color: rgb(82, 82, 91);
+}
+.dark .arbitro-choice-previous {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgb(161, 161, 170);
+}
+.arbitro-choice-prev-key {
+  font-weight: 600;
+  color: rgb(99, 102, 241);
+}
+.dark .arbitro-choice-prev-key { color: rgb(165, 180, 252); }
+
+.arbitro-choice-prompt {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(39, 39, 42);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+.dark .arbitro-choice-prompt { color: rgb(244, 244, 245); }
+
+.arbitro-choice-error {
+  font-size: 11px;
+  color: rgb(225, 29, 72);
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.dark .arbitro-choice-error {
+  color: rgb(252, 165, 165);
+  background: rgba(244, 63, 94, 0.15);
+}
+
+.arbitro-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.arbitro-choice-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  padding-right: 1.75rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 0.625rem;
+  transition: 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-size: 12px;
+  color: rgb(39, 39, 42);
+  cursor: pointer;
+}
+.arbitro-choice-option:hover:not(:disabled) {
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.10) 0%,
+    rgba(168, 85, 247, 0.08) 100%);
+  border-color: rgb(99, 102, 241);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -2px rgba(99, 102, 241, 0.25);
+}
+.arbitro-choice-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.dark .arbitro-choice-option {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: rgb(244, 244, 245);
+}
+.dark .arbitro-choice-option:hover:not(:disabled) {
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.20) 0%,
+    rgba(168, 85, 247, 0.16) 100%);
+}
+.arbitro-choice-option-label {
+  font-weight: 500;
+}
+.arbitro-choice-option-hint {
+  font-size: 10.5px;
+  color: rgb(113, 113, 122);
+  margin-top: 0.125rem;
+}
+.dark .arbitro-choice-option-hint { color: rgb(161, 161, 170); }
+.arbitro-choice-option-arrow {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgb(165, 180, 252);
+}
+
+.arbitro-choice-confirm {
+  display: flex;
+  gap: 0.5rem;
+}
+.arbitro-choice-yes,
+.arbitro-choice-no {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 0.625rem;
+  font-size: 13px;
+  font-weight: 600;
+  transition: 200ms;
+}
+.arbitro-choice-yes {
+  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(139, 92, 246));
+  color: white;
+  border: none;
+}
+.arbitro-choice-yes:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -2px rgba(99, 102, 241, 0.4);
+}
+.arbitro-choice-no {
+  background: rgba(255, 255, 255, 0.6);
+  color: rgb(82, 82, 91);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+.arbitro-choice-no:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.08);
+  color: rgb(225, 29, 72);
+  border-color: rgba(244, 63, 94, 0.25);
+}
+.dark .arbitro-choice-no {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgb(228, 228, 231);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.arbitro-choice-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.arbitro-choice-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 0.625rem;
+  font-size: 13px;
+  color: rgb(39, 39, 42);
+  outline: none;
+  transition: 200ms;
+}
+.arbitro-choice-input:focus {
+  border-color: rgb(99, 102, 241);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+.dark .arbitro-choice-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: rgb(244, 244, 245);
+}
+.arbitro-choice-submit {
+  padding: 0 1rem;
+  background: linear-gradient(135deg, rgb(99, 102, 241), rgb(139, 92, 246));
+  color: white;
+  border-radius: 0.625rem;
+  font-size: 12px;
+  font-weight: 600;
+  transition: 200ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.arbitro-choice-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -2px rgba(99, 102, 241, 0.4);
+}
+
+.arbitro-choice-empty {
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 12px;
+  color: rgb(113, 113, 122);
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 0.625rem;
+}
+.dark .arbitro-choice-empty {
+  color: rgb(161, 161, 170);
+  background: rgba(255, 255, 255, 0.04);
+}

@@ -62,8 +62,18 @@ import FundDetailsPage from './pages/Funds/FundDetailsPage';
 import CreateFundPage from './pages/Funds/CreateFundPage';
 import ProfitBankPage from './pages/ProfitBank/ProfitBankPage';
 
+// Celina 6 - Arbitro AI asistent (web only). Phase 5 optimizacija:
+// React.lazy + Suspense — Arbitro modul (~250KB sa Liquid Glass CSS-om)
+// se ucitava tek kada korisnik prvi put klikne FAB. Tako se inicijalni
+// bundle ne uvecava za korisnike koji ne otvore asistenta.
+import { lazy, Suspense } from 'react';
+const ArbitroOverlay = lazy(() =>
+  import('./components/assistant/ArbitroOverlay').then((m) => ({ default: m.ArbitroOverlay }))
+);
+
 export default function App() {
   return (
+    <>
     <Routes>
       {/* Javne rute */}
       <Route path="/" element={<LandingPage />} />
@@ -146,5 +156,11 @@ export default function App() {
       {/* 404 catch-all */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    {/* Suspense fallback je null — FAB nije kriticno za prvi paint, mozemo
+        ga sakriti dok se chunk ucita. */}
+    <Suspense fallback={null}>
+      <ArbitroOverlay />
+    </Suspense>
+    </>
   );
 }

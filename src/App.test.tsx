@@ -29,6 +29,12 @@ vi.mock('./pages/Error/ServerErrorPage', () => ({
   default: () => <div data-testid="server-error-page">ServerErrorPage</div>,
 }));
 
+// Phase 4 v3.5 — Arbitro overlay zahteva ArbitroProvider iz main.tsx, koji
+// nije u test render-u. Mock-uje se na null da ne pada router test.
+vi.mock('./components/assistant/ArbitroOverlay', () => ({
+  ArbitroOverlay: () => null,
+}));
+
 // Mock all protected route pages
 vi.mock('./pages/HomePage/HomePage', () => ({ default: () => <div>HomePage</div> }));
 vi.mock('./pages/Accounts/AccountListPage', () => ({ default: () => <div>AccountListPage</div> }));
