@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
 import type { PortfolioItem, PortfolioSummary } from '@/types/celina3';
 import { formatAmount, formatDateTime } from '@/utils/formatters';
+import { parseNumber } from '@/utils/numberUtils';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +39,7 @@ import {
 import MyFundsTab from '@/pages/Funds/MyFundsTab';
 
 function formatPercent(value: number | null | undefined): string {
-  const num = typeof value === 'number' ? value : Number(value) || 0;
+  const num = typeof value === 'number' ? value : parseNumber(value);
   return `${num.toLocaleString('sr-RS', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

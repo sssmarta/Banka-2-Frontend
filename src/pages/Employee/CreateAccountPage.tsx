@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Loader2, User, Building2, CreditCard, Wallet, Eye } fr
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
+import { getErrorMessage } from '@/utils/formatters';
 import type { Client } from '@/types';
 import type { AccountType, AccountSubtype, Currency } from '@/types/celina2';
 import {
@@ -178,9 +179,8 @@ export default function CreateAccountPage() {
 
       toast.success('Racun uspesno kreiran.');
       navigate('/employee/accounts');
-    } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { message?: string } } };
-      toast.error(apiError.response?.data?.message || 'Kreiranje racuna nije uspelo.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Kreiranje racuna nije uspelo.'));
     } finally {
       setIsSubmitting(false);
     }

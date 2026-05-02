@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import {
@@ -28,7 +29,7 @@ import exchangeManagementService from '@/services/exchangeManagementService';
 
 // Lazy-load the 3D globe (Three.js ~500KB) - only pulled when user clicks the tab
 const GlobeView = lazy(() => import('../Exchanges/GlobeView'));
-import { formatPrice } from '@/utils/formatters';
+import { formatPrice, formatVolumeCompact } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -72,13 +73,6 @@ function getMaintenanceMargin(listing: Listing, activeTab: ListingTab): number {
 function getInitialMarginCost(listing: Listing, activeTab: ListingTab): number {
   if (listing.initialMarginCost) return listing.initialMarginCost;
   return getMaintenanceMargin(listing, activeTab) * 1.1;
-}
-
-function formatVolumeCompact(vol: number | null | undefined): string {
-  if (vol == null) return '-';
-  if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
-  if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
-  return vol.toLocaleString('sr-RS');
 }
 
 // Deterministic sparkline based on ticker string so it doesn't change on re-render
@@ -142,7 +136,7 @@ export default function SecuritiesListPage() {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [exchangesLoading, setExchangesLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
   const [page, setPage] = useState(0);
   const [data, setData] = useState<PaginatedResponse<Listing> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,11 +167,6 @@ export default function SecuritiesListPage() {
     settlementDateTo: '',
   });
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Debounce advanced filters - use JSON key to avoid unnecessary re-renders
   const filtersKey = `${exchangePrefix}|${priceMin}|${priceMax}|${settlementDateFrom}|${settlementDateTo}`;

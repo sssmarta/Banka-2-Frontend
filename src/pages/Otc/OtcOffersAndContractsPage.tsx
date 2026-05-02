@@ -26,16 +26,12 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatAmount, formatDateTime, asArray, getErrorMessage } from '@/utils/formatters';
+import { formatAmount, formatDateTime, asArray, getErrorMessage, getPreferredAccount } from '@/utils/formatters';
 import { computeOfferDeviation } from './otcOfferUtils';
 import OtcInterBankOffersTab from './OtcInterBankOffersTab';
 import OtcInterBankContractsTab from './OtcInterBankContractsTab';
 
-const CONTRACT_STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'Aktivan',
-  EXERCISED: 'Iskoriscen',
-  EXPIRED: 'Istekao',
-};
+import { OTC_CONTRACT_STATUS_LABELS as CONTRACT_STATUS_LABEL } from '@/utils/otcLabels';
 
 const statusBadgeVariant = (status: string): 'success' | 'secondary' | 'destructive' | 'warning' => {
   if (status === 'ACTIVE') return 'success';
@@ -138,11 +134,8 @@ export default function OtcOffersAndContractsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEmployee]);
 
-  const pickMatchingAccount = (currency: string): Account | undefined =>
-    accounts.find((a) => a.currency === currency) ?? accounts[0];
-
   const handleAccept = async (offer: OtcOffer) => {
-    const buyerAccount = pickMatchingAccount(offer.listingCurrency);
+    const buyerAccount = getPreferredAccount(accounts, offer.listingCurrency);
     if (!buyerAccount) {
       toast.error('Nemate nijedan aktivan racun za placanje premije.');
       return;
@@ -227,7 +220,7 @@ export default function OtcOffersAndContractsPage() {
     if (!window.confirm(`Iskoristiti ugovor za ${contract.quantity} x ${contract.listingTicker}?`)) {
       return;
     }
-    const buyerAccount = pickMatchingAccount(contract.listingCurrency);
+    const buyerAccount = getPreferredAccount(accounts, contract.listingCurrency);
     if (!buyerAccount) {
       toast.error('Nemate nijedan aktivan racun za placanje strike cene.');
       return;

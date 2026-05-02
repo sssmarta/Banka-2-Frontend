@@ -16,6 +16,7 @@ import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction } from '@/types/celina2';
 import { formatBalance, formatAccountNumber } from '@/utils/formatters';
+import { parseNumber } from '@/utils/numberUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,44 +25,16 @@ import { Label } from '@/components/ui/label';
 import { ResponsiveContainer, LineChart, Line } from 'recharts';
 import VerificationModal from '@/components/shared/VerificationModal';
 
-const accountTypeLabels: Record<string, string> = {
-  TEKUCI: 'Tekuci',
-  DEVIZNI: 'Devizni',
-  POSLOVNI: 'Poslovni',
-  CHECKING: 'Tekuci',
-  FOREIGN: 'Devizni',
-  BUSINESS: 'Poslovni',
-};
+import { ACCOUNT_TYPE_LABELS as accountTypeLabels } from '@/utils/accountTypeLabels';
 
-const statusLabels: Record<string, string> = {
-  ACTIVE: 'Aktivan',
-  BLOCKED: 'Blokiran',
-  INACTIVE: 'Neaktivan',
-};
+import {
+  ACCOUNT_STATUS_LABELS as statusLabels,
+  ACCOUNT_STATUS_BADGE_VARIANT as statusVariant,
+  TRANSACTION_STATUS_LABELS as txStatusLabels,
+  TRANSACTION_STATUS_BADGE_VARIANT as txStatusVariant,
+} from '@/utils/transactionLabels';
 
-const statusVariant: Record<string, 'success' | 'destructive' | 'secondary'> = {
-  ACTIVE: 'success',
-  BLOCKED: 'destructive',
-  INACTIVE: 'secondary',
-};
-
-const txStatusLabels: Record<string, string> = {
-  PENDING: 'Na cekanju',
-  COMPLETED: 'Zavrsena',
-  REJECTED: 'Odbijena',
-  CANCELLED: 'Otkazana',
-};
-
-const txStatusVariant: Record<string, 'warning' | 'success' | 'destructive' | 'secondary'> = {
-  PENDING: 'warning',
-  COMPLETED: 'success',
-  REJECTED: 'destructive',
-  CANCELLED: 'secondary',
-};
-
-const currencySymbols: Record<string, string> = {
-  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
-};
+import { CURRENCY_SYMBOLS as currencySymbols } from '@/utils/currencyMaps';
 
 function formatDateGroup(dateStr: string): string {
   const date = new Date(dateStr);
@@ -186,14 +159,14 @@ export default function AccountDetailsPage() {
         const accountData = {
           ...raw,
           currency: raw.currency || (rawAny.currencyCode as string) || 'RSD',
-          availableBalance: Number(raw.availableBalance) || 0,
-          balance: Number(raw.balance) || 0,
-          reservedBalance: Number(raw.reservedBalance) || Number(rawAny.reservedFunds) || 0,
-          dailyLimit: Number(raw.dailyLimit) || 0,
-          monthlyLimit: Number(raw.monthlyLimit) || 0,
-          dailySpending: Number(raw.dailySpending) || 0,
-          monthlySpending: Number(raw.monthlySpending) || 0,
-          maintenanceFee: Number(raw.maintenanceFee) || 0,
+          availableBalance: parseNumber(raw.availableBalance),
+          balance: parseNumber(raw.balance),
+          reservedBalance: parseNumber(raw.reservedBalance) || parseNumber(rawAny.reservedFunds),
+          dailyLimit: parseNumber(raw.dailyLimit),
+          monthlyLimit: parseNumber(raw.monthlyLimit),
+          dailySpending: parseNumber(raw.dailySpending),
+          monthlySpending: parseNumber(raw.monthlySpending),
+          maintenanceFee: parseNumber(raw.maintenanceFee),
         } as Account;
         setAccount(accountData);
         setRenameValue(accountData.name || '');

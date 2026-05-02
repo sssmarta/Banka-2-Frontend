@@ -32,38 +32,11 @@ import { creditService } from '@/services/creditService';
 import type { Loan, LoanStatus, LoanType } from '@/types/celina2';
 import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 
-function statusBadgeVariant(status: LoanStatus): 'success' | 'warning' | 'info' | 'destructive' | 'secondary' {
-  if (status === 'ACTIVE') return 'success';
-  if (status === 'PENDING') return 'warning';
-  if (status === 'APPROVED') return 'info';
-  if (status === 'REJECTED') return 'destructive';
-  if (status === 'LATE') return 'destructive';
-  if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
-  return 'secondary';
-}
-
-const statusRowBorder: Record<string, string> = {
-  ACTIVE: 'border-l-emerald-500',
-  PENDING: 'border-l-amber-500',
-  APPROVED: 'border-l-blue-500',
-  REJECTED: 'border-l-red-500',
-  LATE: 'border-l-red-500',
-  PAID: 'border-l-gray-400',
-  PAID_OFF: 'border-l-gray-400',
-  CLOSED: 'border-l-gray-300',
-};
-
-function statusLabel(status: LoanStatus): string {
-  if (status === 'ACTIVE') return 'Aktivan';
-  if (status === 'PENDING') return 'Na cekanju';
-  if (status === 'APPROVED') return 'Odobren';
-  if (status === 'REJECTED') return 'Odbijen';
-  if (status === 'PAID') return 'Otplacen';
-  if (status === 'PAID_OFF') return 'Prevremeno otplacen';
-  if (status === 'LATE') return 'Kasnjenje';
-  if (status === 'CLOSED') return 'Zatvoren';
-  return status;
-}
+import {
+  LOAN_STATUS_ROW_BORDER as statusRowBorder,
+  getLoanStatusBadgeVariant as statusBadgeVariant,
+  getLoanStatusLabel as statusLabel,
+} from '@/utils/loanLabels';
 
 export default function AllLoansPage() {
   const [loans, setLoans] = useState<Loan[]>([]);

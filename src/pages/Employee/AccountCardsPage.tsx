@@ -19,7 +19,7 @@ import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { cardService } from '@/services/cardService';
 import type { Account, CardType, Card as BankCard } from '@/types/celina2';
-import { formatDate, formatBalance, formatAccountNumber } from '@/utils/formatters';
+import { formatDate, formatBalance, formatAccountNumber, maskCardNumber } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,24 +32,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const cardStatusLabels: Record<string, string> = {
-  ACTIVE: 'Aktivna',
-  BLOCKED: 'Blokirana',
-  DEACTIVATED: 'Deaktivirana',
-};
-
-const cardStatusDots: Record<string, string> = {
-  ACTIVE: 'bg-emerald-500',
-  BLOCKED: 'bg-red-500',
-  DEACTIVATED: 'bg-gray-400 dark:bg-gray-500',
-};
-
-const cardTypeLabels: Record<string, string> = {
-  VISA: 'Visa',
-  MASTERCARD: 'Mastercard',
-  DINACARD: 'DinaCard',
-  AMERICAN_EXPRESS: 'American Express',
-};
+import {
+  CARD_STATUS_LABELS as cardStatusLabels,
+  CARD_STATUS_DOTS as cardStatusDots,
+  CARD_TYPE_LABELS as cardTypeLabels,
+} from '@/utils/cardLabels';
 
 const cardTypeGradients: Record<string, string> = {
   VISA: 'from-blue-600 to-blue-800',
@@ -57,10 +44,6 @@ const cardTypeGradients: Record<string, string> = {
   DINACARD: 'from-emerald-500 to-green-700',
   AMERICAN_EXPRESS: 'from-indigo-500 to-violet-700',
 };
-
-function maskCardNumber(number: string): string {
-  return `**** **** **** ${number.slice(-4)}`;
-}
 
 export default function AccountCardsPage() {
   const navigate = useNavigate();

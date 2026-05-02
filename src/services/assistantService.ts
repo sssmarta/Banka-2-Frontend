@@ -37,21 +37,75 @@ function getAccessToken(): string | null {
   );
 }
 
+/** Vrati `Authorization: Bearer ...` header object ako token postoji, inace prazan. */
+function authHeader(): Record<string, string> {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 /**
  * Otvara SSE konekciju ka /assistant/chat. Vraca AbortController da pozivac
  * moze otkazati stream (npr. 'Stop generating' dugme).
  */
+/**
+ * Cita SSE frame-ove iz response.body, parsuje ih i predaje svakog
+ * preko `onEvent`. Posle 'done' event-a, BE zatvara stream sto na nekim
+ * platformama (Tomcat SseEmitter, nginx proxy) izaziva read failure —
+ * vraca {chatDone:true} pre nego sto se baci.
+ *
+ * Resolves normally na kraju stream-a; reject samo ako je read greska
+ * legitimna (PRE 'done' event-a). Caller je duzan da prosledi
+ * `controller.signal.aborted` da bi razlikovao otkaz od greske.
+ */
+async function consumeSseStream(
+  response: Response,
+  contextLabel: string,
+  onEvent: (event: ArbitroSseEvent) => void,
+): Promise<{ chatDone: boolean }> {
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`${contextLabel} HTTP ${response.status}: ${text || response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error(`${contextLabel}: prazan response body`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let chatDone = false;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      for (;;) {
+        const frameEnd = buffer.indexOf('\n\n');
+        if (frameEnd === -1) break;
+        const frame = buffer.slice(0, frameEnd);
+        buffer = buffer.slice(frameEnd + 2);
+        parseFrame(frame, (eventName, data) => {
+          const parsed = parseSseEvent(eventName, data);
+          if (parsed) {
+            if (parsed.type === 'done') chatDone = true;
+            onEvent(parsed);
+          }
+        });
+      }
+    }
+  } catch (readErr) {
+    if (!chatDone) throw readErr;
+  }
+  return { chatDone };
+}
+
 export function streamChat(
   request: ArbitroChatRequest,
   onEvent: (event: ArbitroSseEvent) => void,
   onError: (error: Error) => void,
-  onComplete: () => void
+  onComplete: () => void,
 ): AbortController {
   const controller = new AbortController();
-  const token = getAccessToken();
-  // Posle 'done' event-a, BE zatvara stream sto na nekim platformama (Tomcat
-  // SseEmitter, nginx proxy) izaziva read failure u browseru. Tracing flag
-  // sprecava da to bude pretvoreno u "Network error" — chat je vec gotov.
   let chatDone = false;
 
   fetch(`${API_BASE}/assistant/chat`, {
@@ -59,61 +113,18 @@ export function streamChat(
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeader(),
     },
     body: JSON.stringify(request),
     signal: controller.signal,
   })
     .then(async (response) => {
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`Arbitro chat HTTP ${response.status}: ${text || response.statusText}`);
-      }
-      if (!response.body) {
-        throw new Error('Arbitro chat: prazan response body');
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-      let currentEventName: string | null = null;
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          // SSE frames terminate with \n\n (or \r\n\r\n)
-          for (;;) {
-            const frameEnd = buffer.indexOf('\n\n');
-            if (frameEnd === -1) break;
-            const frame = buffer.slice(0, frameEnd);
-            buffer = buffer.slice(frameEnd + 2);
-            parseFrame(frame, (eventName, data) => {
-              currentEventName = eventName;
-              const parsed = parseSseEvent(eventName, data);
-              if (parsed) {
-                if (parsed.type === 'done') chatDone = true;
-                onEvent(parsed);
-              }
-            });
-          }
-          if (currentEventName) currentEventName = null;
-        }
-      } catch (readErr) {
-        // BE zatvori stream posle 'done' — read greska je benigna ako vec imamo done
-        if (!chatDone) throw readErr;
-      }
+      const result = await consumeSseStream(response, 'Arbitro chat', onEvent);
+      chatDone = result.chatDone;
       onComplete();
     })
     .catch((err) => {
-      if (controller.signal.aborted) {
-        // User je otkazao — ne tretiramo kao error
-        onComplete();
-        return;
-      }
-      if (chatDone) {
-        // Stream se vec uspesno zavrsio — fetch failure je samo kasna konekcija reset
+      if (controller.signal.aborted || chatDone) {
         onComplete();
         return;
       }
@@ -247,13 +258,12 @@ function parseSseEvent(eventName: string, data: string): ArbitroSseEvent | null 
 /* ============================== REST endpoints ============================== */
 
 async function authedJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAccessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeader(),
       ...init?.headers,
     },
   });
@@ -372,7 +382,6 @@ export function streamChatWithMedia(
   onComplete: () => void
 ): AbortController {
   const controller = new AbortController();
-  const token = getAccessToken();
   let chatDone = false;
 
   const formData = new FormData();
@@ -388,7 +397,6 @@ export function streamChatWithMedia(
   formData.append('media', mediaBlob, filename);
   if (request.conversationUuid) formData.append('conversationUuid', request.conversationUuid);
   if (request.agenticMode !== undefined) formData.append('agenticMode', String(request.agenticMode));
-  if (request.useTools !== undefined) formData.append('useTools', String(request.useTools));
   if (request.pageContext) {
     // Page context kao JSON multipart part — BE moze opciono parsirati
     formData.append('pageContext', JSON.stringify(request.pageContext));
@@ -398,42 +406,14 @@ export function streamChatWithMedia(
     method: 'POST',
     headers: {
       Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeader(),
     },
     body: formData,
     signal: controller.signal,
   })
     .then(async (response) => {
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`Multipart chat HTTP ${response.status}: ${text}`);
-      }
-      if (!response.body) throw new Error('Multipart chat: prazan body');
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          for (;;) {
-            const frameEnd = buffer.indexOf('\n\n');
-            if (frameEnd === -1) break;
-            const frame = buffer.slice(0, frameEnd);
-            buffer = buffer.slice(frameEnd + 2);
-            parseFrame(frame, (eventName, data) => {
-              const parsed = parseSseEvent(eventName, data);
-              if (parsed) {
-                if (parsed.type === 'done') chatDone = true;
-                onEvent(parsed);
-              }
-            });
-          }
-        }
-      } catch (readErr) {
-        if (!chatDone) throw readErr;
-      }
+      const result = await consumeSseStream(response, 'Multipart chat', onEvent);
+      chatDone = result.chatDone;
       onComplete();
     })
     .catch((err) => {
@@ -462,14 +442,13 @@ export async function fetchTtsAudio(
   lang?: string,
   speed?: number
 ): Promise<Blob | null> {
-  const token = getAccessToken();
   try {
     const response = await fetch(`${API_BASE}/assistant/tts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'audio/wav',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...authHeader(),
       },
       body: JSON.stringify({ text, voice, lang, speed }),
     });

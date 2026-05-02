@@ -175,7 +175,7 @@ describe('OtcInterBankDiscoveryTab', () => {
       expect(screen.getByTestId('role-filter-badge')).toHaveTextContent('Aktuari');
     });
 
-    it('hides CLIENT listings from an AGENT user', async () => {
+    it('treats an AGENT user as CLIENT (agents have no OTC inter-bank access per spec Celina 4 (Nova) §137-141)', async () => {
       mockUseAuth.mockReturnValue({ isAdmin: false, isAgent: true, isSupervisor: false });
       mockListRemoteListings.mockResolvedValue([
         makeListing({ ticker: 'AAPL', sellerRole: 'CLIENT' }),
@@ -185,9 +185,9 @@ describe('OtcInterBankDiscoveryTab', () => {
       render(<OtcInterBankDiscoveryTab />);
 
       await waitFor(() => {
-        expect(screen.getByText('MSFT')).toBeInTheDocument();
+        expect(screen.getByText('AAPL')).toBeInTheDocument();
       });
-      expect(screen.queryByText('AAPL')).not.toBeInTheDocument();
+      expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
     });
 
     it('shows listings without sellerRole as defensive fallback (with warning)', async () => {

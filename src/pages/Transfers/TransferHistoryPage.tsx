@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Repeat, Inbox } from 'lucide-react';
 import { asArray, formatAmount, formatDateTime } from '@/utils/formatters';
+import { sortByCreatedAtDesc } from '@/utils/comparators';
 
 function statusBadgeVariant(status: string) {
   if (status === 'COMPLETED') return 'success' as const;
@@ -76,13 +77,10 @@ export default function TransferHistoryPage() {
     setPage(0);
   }, [accountNumber, dateFrom, dateTo]);
 
-  const sortedTransfers = useMemo(() => {
-    return [...asArray<Transfer>(transfers)].sort((a, b) => {
-      const aTime = new Date(a.createdAt).getTime();
-      const bTime = new Date(b.createdAt).getTime();
-      return bTime - aTime;
-    });
-  }, [transfers]);
+  const sortedTransfers = useMemo(
+    () => [...asArray<Transfer>(transfers)].sort(sortByCreatedAtDesc),
+    [transfers],
+  );
 
   const totalPages = Math.max(1, Math.ceil(sortedTransfers.length / limit));
 

@@ -18,7 +18,11 @@ import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
 import interbankPaymentService from '@/services/interbankPaymentService';
 import type { Account, PaymentRecipient } from '@/types/celina2';
-import type { InterbankPayment, InterbankPaymentInitiateRequest, InterbankPaymentStatus } from '@/types/celina4';
+import {
+  INTERBANK_TERMINAL_STATUSES,
+  type InterbankPayment,
+  type InterbankPaymentInitiateRequest,
+} from '@/types/celina4';
 import { newPaymentSchema, type NewPaymentFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,12 +30,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
 import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash, BookUser, CheckCircle2, X } from 'lucide-react';
-import { asArray, formatAmount } from '@/utils/formatters';
+import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const OUR_BANK_PREFIX = '222';
 const INTERBANK_POLL_MS = 3000;
 const INTERBANK_MAX_POLLS = 40;
-const INTERBANK_TERMINAL_STATUSES: InterbankPaymentStatus[] = ['COMMITTED', 'ABORTED', 'STUCK'];
 
 function isInterbank(accountNumber: string): boolean {
   return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== OUR_BANK_PREFIX;
@@ -150,7 +153,14 @@ export default function NewPaymentPage() {
       attempts += 1;
       await new Promise((resolve) => setTimeout(resolve, INTERBANK_POLL_MS));
       const status = await interbankPaymentService.getStatus(transactionId);
-      setInterbankTracking(status);
+      setInterbankTracking((prev) =>
+        prev &&
+        prev.status === status.status &&
+        prev.transactionId === status.transactionId &&
+        prev.failureReason === status.failureReason
+          ? prev
+          : status,
+      );
       if (INTERBANK_TERMINAL_STATUSES.includes(status.status)) {
         return status;
       }
@@ -644,10 +654,9 @@ export default function NewPaymentPage() {
             } else {
               navigate('/payments/history');
             }
-          } catch (err: unknown) {
-            const error = err as { response?: { data?: { message?: string } } };
-            toast.error(error.response?.data?.message || 'Kreiranje placanja nije uspelo.');
-            throw err; // Re-throw so VerificationModal can track attempts
+          } catch (err) {
+            toast.error(getErrorMessage(err, 'Kreiranje placanja nije uspelo.'));
+            throw err;
           }
         }}
       />

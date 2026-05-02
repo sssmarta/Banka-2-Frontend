@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/formatters';
 
 interface CardReq {
   id: number;
@@ -55,9 +56,8 @@ export default function CardRequestsPage() {
         toast.success('Zahtev odbijen.');
       }
       await load();
-    } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { message?: string } } };
-      toast.error(apiError.response?.data?.message || 'Akcija nije uspela.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Akcija nije uspela.'));
     } finally {
       setProcessing(null);
     }

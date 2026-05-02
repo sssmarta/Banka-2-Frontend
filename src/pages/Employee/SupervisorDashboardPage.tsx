@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -35,11 +35,8 @@ import taxService from '@/services/taxService';
 import type { Order, ActuaryInfo } from '@/types/celina3';
 import { formatAmount, formatDate, formatVolumeCompact } from '@/utils/formatters';
 
-/* ---------- helpers ---------- */
-
-
 function statusBadgeVariant(
-  status: string
+  status: string,
 ): 'warning' | 'info' | 'success' | 'destructive' | 'secondary' {
   switch (status) {
     case 'PENDING':
@@ -54,6 +51,13 @@ function statusBadgeVariant(
       return 'secondary';
   }
 }
+
+const STAT_COLOR_MAP: Record<string, { bg: string; text: string; gradient: string }> = {
+  amber: { bg: 'bg-amber-500/10', text: 'text-amber-500', gradient: 'from-amber-500/10' },
+  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', gradient: 'from-emerald-500/10' },
+  indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-500', gradient: 'from-indigo-500/10' },
+  rose: { bg: 'bg-rose-500/10', text: 'text-rose-500', gradient: 'from-rose-500/10' },
+};
 
 /* ---------- skeleton ---------- */
 
@@ -168,69 +172,38 @@ export default function SupervisorDashboardPage() {
     load();
   }, [canSeeOrders]);
 
-  /* --- stat card definitions --- */
-  const statCards = [
-    ...(canSeeOrders ? [{
-      label: 'Pending orderi',
-      value: pendingOrders,
-      color: 'amber',
-      Icon: ClipboardList,
-    },
-    {
-      label: 'Aktivni agenti',
-      value: activeAgents,
-      color: 'emerald',
-      Icon: Users,
-    }] : []),
-    {
-      label: 'Današnji volume',
-      value: dailyVolume,
-      color: 'indigo',
-      Icon: BarChart3,
-    },
-    ...(canSeeOrders ? [{
-      label: 'Neplaćen porez',
-      value: unpaidTax,
-      color: 'rose',
-      Icon: Calculator,
-    }] : []),
-  ];
+  const statCards = useMemo(
+    () => [
+      ...(canSeeOrders
+        ? [
+            { label: 'Pending orderi', value: pendingOrders, color: 'amber', Icon: ClipboardList },
+            { label: 'Aktivni agenti', value: activeAgents, color: 'emerald', Icon: Users },
+          ]
+        : []),
+      { label: 'Današnji volume', value: dailyVolume, color: 'indigo', Icon: BarChart3 },
+      ...(canSeeOrders
+        ? [{ label: 'Neplaćen porez', value: unpaidTax, color: 'rose', Icon: Calculator }]
+        : []),
+    ],
+    [canSeeOrders, pendingOrders, activeAgents, dailyVolume, unpaidTax],
+  );
 
-  const colorMap: Record<string, { bg: string; text: string; gradient: string }> = {
-    amber: {
-      bg: 'bg-amber-500/10',
-      text: 'text-amber-500',
-      gradient: 'from-amber-500/10',
-    },
-    emerald: {
-      bg: 'bg-emerald-500/10',
-      text: 'text-emerald-500',
-      gradient: 'from-emerald-500/10',
-    },
-    indigo: {
-      bg: 'bg-indigo-500/10',
-      text: 'text-indigo-500',
-      gradient: 'from-indigo-500/10',
-    },
-    rose: {
-      bg: 'bg-rose-500/10',
-      text: 'text-rose-500',
-      gradient: 'from-rose-500/10',
-    },
-  };
-
-  /* --- quick links --- */
-  const quickLinks = [
-    ...(canSeeOrders ? [
-      { label: 'Orderi', route: '/employee/orders', Icon: ShoppingCart },
-      { label: 'Aktuari', route: '/employee/actuaries', Icon: TrendingUp },
-      { label: 'Porez', route: '/employee/tax', Icon: Calculator },
-      { label: 'Profit Banke', route: '/employee/profit-bank', Icon: Landmark },
-      { label: 'Investicioni fondovi', route: '/funds', Icon: PiggyBank },
-    ] : []),
-    { label: 'Berze', route: '/employee/exchanges', Icon: Globe },
-    { label: 'Berza', route: '/securities', Icon: TrendingUp },
-  ];
+  const quickLinks = useMemo(
+    () => [
+      ...(canSeeOrders
+        ? [
+            { label: 'Orderi', route: '/employee/orders', Icon: ShoppingCart },
+            { label: 'Aktuari', route: '/employee/actuaries', Icon: TrendingUp },
+            { label: 'Porez', route: '/employee/tax', Icon: Calculator },
+            { label: 'Profit Banke', route: '/employee/profit-bank', Icon: Landmark },
+            { label: 'Investicioni fondovi', route: '/funds', Icon: PiggyBank },
+          ]
+        : []),
+      { label: 'Berze', route: '/employee/exchanges', Icon: Globe },
+      { label: 'Berza', route: '/securities', Icon: TrendingUp },
+    ],
+    [canSeeOrders],
+  );
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -253,7 +226,7 @@ export default function SupervisorDashboardPage() {
       ) : (
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
           {statCards.map((card) => {
-            const colors = colorMap[card.color];
+            const colors = STAT_COLOR_MAP[card.color];
             return (
               <Card key={card.label} className="relative overflow-hidden">
                 <div

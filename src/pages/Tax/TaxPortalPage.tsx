@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatAmount } from '@/utils/formatters';
+import { parseNumber } from '@/utils/numberUtils';
 import {
   Table,
   TableBody,
@@ -106,8 +107,8 @@ export default function TaxPortalPage() {
 
   const mappedRecords = useMemo(() => {
     return records.map((record) => {
-      const taxPaid = Number(record.taxPaid) || 0;
-      const taxOwed = Number(record.taxOwed) || 0;
+      const taxPaid = parseNumber(record.taxPaid);
+      const taxOwed = parseNumber(record.taxOwed);
       const debtInOriginalCurrency = Math.max(taxOwed - taxPaid, 0);
       const currencyCode = String(record.currency || 'RSD');
       const conversionRate = rateByCurrency.get(currencyCode) ?? 1;
@@ -259,9 +260,9 @@ export default function TaxPortalPage() {
               </TableRow>
             ) : (
               mappedRecords.map((record) => {
-                const profit = Number(record.totalProfit) || 0;
-                const owed = Number(record.taxOwed) || 0;
-                const paid = Number(record.taxPaid) || 0;
+                const profit = parseNumber(record.totalProfit);
+                const owed = parseNumber(record.taxOwed);
+                const paid = parseNumber(record.taxPaid);
 
                 return (
                   <TableRow key={`${record.userType}-${record.userId}`} className="hover:bg-muted/50 transition-colors">

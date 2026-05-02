@@ -22,7 +22,7 @@ import {
   loanApplicationSchema,
   type LoanApplicationFormData,
 } from '@/utils/validationSchemas.celina2';
-import { asArray } from '@/utils/formatters';
+import { asArray, getErrorMessage } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -264,9 +264,8 @@ export default function LoanApplicationPage() {
       });
       toast.success('Zahtev za kredit je uspesno poslat.');
       navigate('/loans');
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Slanje zahteva nije uspelo.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Slanje zahteva nije uspelo.'));
     } finally {
       setIsSubmitting(false);
     }

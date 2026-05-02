@@ -287,8 +287,8 @@ export interface TransferRequest {
 }
 
 export interface ExchangeRequest {
-  fromCurrency: string | Currency;
-  toCurrency: string | Currency;
+  fromCurrency: Currency;
+  toCurrency: Currency;
   amount: number;
   accountNumber?: string;
 }

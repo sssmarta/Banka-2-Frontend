@@ -1,4 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
+import { percentOf } from '@/utils/numberUtils';
 import { Pencil, RefreshCw, Scale, Search, SlidersHorizontal, Users } from 'lucide-react';
 import actuaryService from '@/services/actuaryService';
 import type { ActuaryInfo } from '@/types/celina3';
@@ -48,13 +50,7 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
   };
 }
 
-function usagePercent(usedLimit: number, dailyLimit: number): number {
-  if (dailyLimit <= 0) {
-    return 0;
-  }
-  const value = (usedLimit / dailyLimit) * 100;
-  return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-}
+const usagePercent = percentOf;
 
 export default function ActuaryManagementPage() {
   const [agents, setAgents] = useState<ActuaryInfo[]>([]);
@@ -62,18 +58,13 @@ export default function ActuaryManagementPage() {
   const [error, setError] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [debouncedFilters, setDebouncedFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const debouncedFilters = useDebounce(filters);
 
   const [editingAgent, setEditingAgent] = useState<ActuaryInfo | null>(null);
   const [editDailyLimit, setEditDailyLimit] = useState('');
   const [editNeedApproval, setEditNeedApproval] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [resettingAgentId, setResettingAgentId] = useState<number | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedFilters(filters), 300);
-    return () => clearTimeout(timer);
-  }, [filters]);
 
   const loadAgents = useCallback(async () => {
     setLoading(true);

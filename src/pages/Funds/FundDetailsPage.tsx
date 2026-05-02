@@ -17,7 +17,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import investmentFundService from '@/services/investmentFundService';
 import type { InvestmentFundDetail, FundPerformancePoint, ClientFundPosition } from '@/types/celina4';
-import { formatAmount, formatDate, formatPrice, getErrorMessage } from '@/utils/formatters';
+import { formatAmount, formatDate, formatPrice, getErrorMessage, toIsoDateOnly } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import FundInvestDialog from './FundInvestDialog';
@@ -41,7 +41,7 @@ function getPerfRange(period: PerfPeriod): { from: string; to: string } {
     case 'quarter': from.setMonth(from.getMonth() - 3); break;
     case 'year': from.setFullYear(from.getFullYear() - 1); break;
   }
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  return { from: toIsoDateOnly(from), to: toIsoDateOnly(to) };
 }
 
 const PERIOD_LABELS: Record<PerfPeriod, string> = {

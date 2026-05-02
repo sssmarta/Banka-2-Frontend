@@ -22,6 +22,30 @@ export function formatDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
+/** Format a Date as ISO date-only string (yyyy-mm-dd). */
+export function toIsoDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Return today's date + N days as ISO date string (yyyy-mm-dd). Used for default settlement dates. */
+export function addDaysISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return toIsoDateOnly(d);
+}
+
+/**
+ * Pick the account whose currency matches `currency`, falling back to the
+ * first account in the list. Used for OTC premium / strike payments where
+ * the buyer should default to a same-currency account if available.
+ */
+export function getPreferredAccount<T extends { currency: string }>(
+  accounts: T[],
+  currency: string,
+): T | undefined {
+  return accounts.find((account) => account.currency === currency) ?? accounts[0];
+}
+
 /** Format a date-time string for display using sr-RS locale. Returns '-' for invalid/empty values. */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '-';
@@ -42,10 +66,34 @@ export function formatBalance(amount: number | null | undefined, currency: strin
   return formatAmount(amount) + ' ' + currency;
 }
 
+/**
+ * BE moze vratiti tip racuna kao "BUSINESS" (engleska forma) ili "POSLOVNI"
+ * (srpska forma) zavisno od endpoint-a — DTO normalizacija nije konzistentna.
+ * Helper objedinjuje proveru.
+ */
+export function isBusinessAccountType(accountType: string | null | undefined): boolean {
+  return accountType === 'BUSINESS' || accountType === 'POSLOVNI';
+}
+
 /** Format an 18-digit account number with dashes (xxx-xxxxxxxxxxxxx-xx). */
 export function formatAccountNumber(accountNumber: string): string {
   if (!accountNumber || accountNumber.length !== 18) return accountNumber || '';
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 16)}-${accountNumber.slice(16)}`;
+}
+
+/**
+ * Mask a card number for display. Always shows the last 4 digits.
+ * - Default: `**** **** **** 1234`
+ * - `showFirst4`: `1234  ****  ****  5678` (helpful where the brand prefix
+ *   is also useful, e.g. card list with VISA/MASTERCARD detection).
+ */
+export function maskCardNumber(number: string, options?: { showFirst4?: boolean }): string {
+  const digits = (number ?? '').replace(/\D/g, '');
+  const last4 = digits.slice(-4);
+  if (options?.showFirst4 && digits.length >= 8) {
+    return `${digits.slice(0, 4)}  ****  ****  ${last4}`;
+  }
+  return `**** **** **** ${last4}`;
 }
 
 /** Format a price for display using sr-RS locale with 2 decimal places. Returns '-' for null/undefined. */

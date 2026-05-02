@@ -21,51 +21,24 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/context/AuthContext';
 import orderService from '@/services/orderService';
 import {
-  ListingType,
   OrderDirection,
   OrderStatus,
-  OrderType,
   type Order,
 } from '@/types/celina3';
 import { asArray, formatAmount, formatDateTime } from '@/utils/formatters';
+import { sortByCreatedAtDesc } from '@/utils/comparators';
+import { clamp, parseNumber } from '@/utils/numberUtils';
+import {
+  LISTING_TYPE_LABELS,
+  ORDER_TYPE_LABELS,
+  ORDER_DIRECTION_LABELS as DIRECTION_LABELS,
+  ORDER_STATUS_LABELS as STATUS_LABELS,
+  ORDER_STATUS_BADGE_VARIANT,
+} from '@/utils/orderLabels';
 
-const LISTING_TYPE_LABELS: Record<string, string> = {
-  [ListingType.STOCK]: 'Akcija',
-  [ListingType.FUTURES]: 'Futures',
-  [ListingType.FOREX]: 'Forex',
-};
-
-const ORDER_TYPE_LABELS: Record<OrderType, string> = {
-  [OrderType.MARKET]: 'Market',
-  [OrderType.LIMIT]: 'Limit',
-  [OrderType.STOP]: 'Stop',
-  [OrderType.STOP_LIMIT]: 'Stop-Limit',
-};
-
-const DIRECTION_LABELS: Record<OrderDirection, string> = {
-  [OrderDirection.BUY]: 'Kupovina',
-  [OrderDirection.SELL]: 'Prodaja',
-};
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  [OrderStatus.PENDING]: 'Na cekanju',
-  [OrderStatus.APPROVED]: 'Odobren',
-  [OrderStatus.DECLINED]: 'Odbijen',
-  [OrderStatus.DONE]: 'Zavrsen',
-};
-
-function getTimestamp(value: string | null | undefined): number {
-  if (!value) return 0;
-
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
 
 function getStatusBadgeVariant(status: OrderStatus) {
-  if (status === OrderStatus.PENDING) return 'warning' as const;
-  if (status === OrderStatus.APPROVED) return 'success' as const;
-  if (status === OrderStatus.DECLINED) return 'destructive' as const;
-  return 'secondary' as const;
+  return ORDER_STATUS_BADGE_VARIANT[status] ?? 'secondary';
 }
 
 function getListingTypeLabel(listingType: string | null | undefined): string {
@@ -76,19 +49,7 @@ function getDirectionIcon(direction: OrderDirection) {
   return direction === OrderDirection.BUY ? TrendingUp : TrendingDown;
 }
 
-function getCommission(orderType: OrderType, approximatePrice: number, isEmployee: boolean = false): number {
-  if (isEmployee) return 0;
-  if (approximatePrice <= 0) return 0;
-
-  // Spec: Market/Stop → min(14% * price, $7), Limit/StopLimit → min(24% * price, $12)
-  // "u zavisnosti od toga koji iznos je manji"
-  const usesLimitPricing =
-    orderType === OrderType.LIMIT || orderType === OrderType.STOP_LIMIT;
-  const rate = usesLimitPricing ? 0.24 : 0.14;
-  const cap = usesLimitPricing ? 12 : 7;
-
-  return Math.min(approximatePrice * rate, cap);
-}
+import { getOrderCommission as getCommission } from '@/utils/orderCalculations';
 
 function getAccountLabel(order: Order): string {
   const candidate = order as Order & {
@@ -113,8 +74,8 @@ function getListingLabel(order: Order) {
 }
 
 function getOrderExecution(order: Order) {
-  const quantity = Math.max(0, Number(order.quantity) || 0);
-  const remaining = Math.min(quantity, Math.max(0, Number(order.remainingPortions) || 0));
+  const quantity = Math.max(0, parseNumber(order.quantity));
+  const remaining = clamp(parseNumber(order.remainingPortions), 0, quantity);
   const executed = Math.max(0, quantity - remaining);
   const progress = quantity > 0 ? Math.round((executed / quantity) * 100) : 0;
 
@@ -303,13 +264,7 @@ export default function MyOrdersPage() {
     }
   }, [loadOrders, orderToCancel]);
 
-  const sortedOrders = useMemo(() => {
-    const copied = [...orders];
-
-    copied.sort((left, right) => getTimestamp(right.createdAt) - getTimestamp(left.createdAt));
-
-    return copied;
-  }, [orders]);
+  const sortedOrders = useMemo(() => [...orders].sort(sortByCreatedAtDesc), [orders]);
 
   const statusCounts = useMemo(() => {
     return sortedOrders.reduce(

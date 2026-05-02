@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { RefreshCw, Inbox, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { currencyService } from '@/services/currencyService';
-import type { ExchangeRate } from '@/types/celina2';
+import { Currency, type ExchangeRate } from '@/types/celina2';
 import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas.celina2';
 import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
@@ -35,15 +35,11 @@ const currencyBorders: Record<string, string> = {
   AUD: 'border-l-teal-500',
 };
 
-const currencyFlags: Record<string, string> = {
-  RSD: 'RS',
-  EUR: 'EU',
-  USD: 'US',
-  CHF: 'CH',
-  GBP: 'GB',
-  JPY: 'JP',
-  CAD: 'CA',
-  AUD: 'AU',
+// 2-slovni ISO codes za prikaz u krugu (npr. "RS"). HomePage u kursnoj listi
+// koristi pravi emoji flag (`CURRENCY_FLAGS` iz utils/currencyMaps), ovde nam
+// trebaju samo cifre/slova jer dizajn ima monohromni krug-badge.
+const currencyCodes: Record<string, string> = {
+  RSD: 'RS', EUR: 'EU', USD: 'US', CHF: 'CH', GBP: 'GB', JPY: 'JP', CAD: 'CA', AUD: 'AU',
 };
 
 const currencyNames: Record<string, string> = {
@@ -57,7 +53,7 @@ const currencyNames: Record<string, string> = {
   AUD: 'Australijski dolar',
 };
 
-const SUPPORTED_CURRENCIES = ['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'] as const;
+const SUPPORTED_CURRENCIES = Object.values(Currency);
 
 
 
@@ -65,7 +61,7 @@ function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
   const safeRates = asArray<ExchangeRate>(rates);
 
   const filteredRates = safeRates.filter((rate) =>
-    SUPPORTED_CURRENCIES.includes(rate.currency as (typeof SUPPORTED_CURRENCIES)[number])
+    (SUPPORTED_CURRENCIES as readonly string[]).includes(rate.currency),
   );
 
   const hasRsd = filteredRates.some((rate) => rate.currency === 'RSD');
@@ -266,7 +262,7 @@ export default function ExchangePage() {
                       <div className="flex items-center gap-4">
                         {/* Currency icon */}
                         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-muted font-bold text-sm ${currencyColors[rate.currency] || ''}`}>
-                          {currencyFlags[rate.currency] || rate.currency.slice(0, 2)}
+                          {currencyCodes[rate.currency] || rate.currency.slice(0, 2)}
                         </div>
 
                         {/* Currency info */}

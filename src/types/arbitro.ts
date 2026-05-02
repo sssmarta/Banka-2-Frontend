@@ -53,8 +53,6 @@ export interface ArbitroChatRequest {
   conversationUuid?: string;
   message: string;
   pageContext?: ArbitroPageContext;
-  useTools?: boolean;
-  detailedMode?: boolean;
   /** Phase 4 v3.5 — agentic mode toggle. Default false (read-only chat). */
   agenticMode?: boolean;
 }

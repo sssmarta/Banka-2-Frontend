@@ -39,11 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const accountTypeLabels: Record<string, string> = {
-  TEKUCI: 'Tekuci',
-  DEVIZNI: 'Devizni',
-  POSLOVNI: 'Poslovni',
-};
+import { ACCOUNT_TYPE_LABELS as accountTypeLabels } from '@/utils/accountTypeLabels';
 
 const accountTypeColors: Record<string, string> = {
   TEKUCI: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',

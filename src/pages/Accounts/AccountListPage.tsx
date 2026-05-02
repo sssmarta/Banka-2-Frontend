@@ -40,45 +40,21 @@ import {
 import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatDate, formatBalance, formatAccountNumber } from '@/utils/formatters';
+import { formatDate, formatBalance, formatAccountNumber, getErrorMessage, isBusinessAccountType } from '@/utils/formatters';
+import { parseNumber } from '@/utils/numberUtils';
+import { sortByAvailableBalanceDesc } from '@/utils/comparators';
 
-const accountTypeLabels: Record<string, string> = {
-  TEKUCI: 'Tekuci',
-  DEVIZNI: 'Devizni',
-  POSLOVNI: 'Poslovni',
-  CHECKING: 'Tekuci',
-  FOREIGN: 'Devizni',
-  BUSINESS: 'Poslovni',
-};
+import { ACCOUNT_TYPE_LABELS as accountTypeLabels } from '@/utils/accountTypeLabels';
 
-const currencyGradients: Record<string, string> = {
-  RSD: 'from-blue-500 to-blue-700',
-  EUR: 'from-indigo-500 to-violet-700',
-  USD: 'from-emerald-500 to-green-700',
-  CHF: 'from-red-500 to-rose-700',
-  GBP: 'from-purple-500 to-violet-700',
-  JPY: 'from-orange-500 to-amber-700',
-  CAD: 'from-rose-500 to-pink-700',
-  AUD: 'from-teal-500 to-cyan-700',
-};
+import {
+  CURRENCY_GRADIENTS as currencyGradients,
+  CURRENCY_SYMBOLS as currencySymbols,
+} from '@/utils/currencyMaps';
 
-const currencySymbols: Record<string, string> = {
-  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
-};
-
-const transactionStatusLabels: Record<string, string> = {
-  PENDING: 'Na cekanju',
-  COMPLETED: 'Zavrsena',
-  REJECTED: 'Odbijena',
-  CANCELLED: 'Otkazana',
-};
-
-const transactionStatusVariant: Record<string, 'warning' | 'success' | 'destructive' | 'secondary'> = {
-  PENDING: 'warning',
-  COMPLETED: 'success',
-  REJECTED: 'destructive',
-  CANCELLED: 'secondary',
-};
+import {
+  TRANSACTION_STATUS_LABELS as transactionStatusLabels,
+  TRANSACTION_STATUS_BADGE_VARIANT as transactionStatusVariant,
+} from '@/utils/transactionLabels';
 
 function normalizeAccountType(raw: string | undefined): AccountType {
   switch (raw) {
@@ -114,14 +90,13 @@ export default function AccountListPage() {
       await accountService.submitRequest({
         accountType: newAccType,
         currency: newAccCurrency,
-        initialDeposit: Number(newAccDeposit) || 0,
+        initialDeposit: parseNumber(newAccDeposit),
         createCard: newAccCard,
       });
       toast.success('Zahtev za otvaranje racuna je uspesno podnet! Ceka odobrenje zaposlenog.');
       setShowNewAccount(false);
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Podnosenje zahteva nije uspelo.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Podnosenje zahteva nije uspelo.'));
     } finally {
       setCreatingAcc(false);
     }
@@ -166,9 +141,9 @@ export default function AccountListPage() {
         return {
         ...a,
         currency: a.currency || (aAny.currencyCode as string) || 'RSD',
-        availableBalance: Number(a.availableBalance) || 0,
-        balance: Number(a.balance) || 0,
-        reservedBalance: Number(a.reservedBalance) || Number(aAny.reservedFunds) || 0,
+        availableBalance: parseNumber(a.availableBalance),
+        balance: parseNumber(a.balance),
+        reservedBalance: parseNumber(a.reservedBalance) || parseNumber(aAny.reservedFunds),
         accountType: normalizeAccountType(a.accountType),
         accountNumber: a.accountNumber || '',
         name: a.name || undefined,
@@ -177,7 +152,7 @@ export default function AccountListPage() {
       }) as Account[];
       setAccounts(safeData);
       if (safeData.length > 0 && selectedAccountId === null) {
-        const sorted = [...safeData].sort((a, b) => b.availableBalance - a.availableBalance);
+        const sorted = [...safeData].sort(sortByAvailableBalanceDesc);
         setSelectedAccountId(sorted[0].id);
       }
     } catch {
@@ -253,7 +228,7 @@ export default function AccountListPage() {
   // --- Account data ---
   const filteredAccounts = accounts
     .filter((a) => !typeFilter || a.accountType === typeFilter)
-    .sort((a, b) => b.availableBalance - a.availableBalance);
+    .sort(sortByAvailableBalanceDesc);
 
   const totalElements = filteredAccounts.length;
   const totalPages = Math.ceil(totalElements / rowsPerPage);
@@ -489,7 +464,7 @@ export default function AccountListPage() {
                   style={{ animationDelay: `${idx * 80}ms`, animationFillMode: 'both' }}
                   onClick={() => setSelectedAccountId(account.id)}
                   onDoubleClick={() => {
-                    if (account.accountType === 'BUSINESS' || account.accountType === 'POSLOVNI') {
+                    if (isBusinessAccountType(account.accountType)) {
                       navigate(`/accounts/${account.id}/business`);
                     } else {
                       navigate(`/accounts/${account.id}`);
@@ -575,7 +550,7 @@ export default function AccountListPage() {
                           className="text-xs text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 h-auto py-1 px-2"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (account.accountType === 'POSLOVNI' || account.accountType === 'BUSINESS') {
+                            if (isBusinessAccountType(account.accountType)) {
                               navigate(`/accounts/${account.id}/business`);
                             } else {
                               navigate(`/accounts/${account.id}`);

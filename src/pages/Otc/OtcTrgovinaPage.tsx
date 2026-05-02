@@ -19,14 +19,8 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatAmount, getErrorMessage } from '@/utils/formatters';
+import { addDaysISO, formatAmount, getErrorMessage } from '@/utils/formatters';
 import OtcInterBankDiscoveryTab from './OtcInterBankDiscoveryTab';
-
-const addDaysISO = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-};
 
 interface OfferFormState {
   quantity: string;

@@ -17,13 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatAmount, getErrorMessage } from '@/utils/formatters';
-
-const addDaysISO = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-};
+import { addDaysISO, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 type OfferFormState = {
   quantity: string;
@@ -51,8 +45,13 @@ const getListingKey = (listing: OtcInterbankListing) =>
   - UI takodje pokazuje koliko je listinga sakriveno filterom.
 */
 export default function OtcInterBankDiscoveryTab() {
-  const { isAdmin, isAgent, isSupervisor } = useAuth();
-  const myRole: 'CLIENT' | 'EMPLOYEE' = isAdmin || isAgent || isSupervisor ? 'EMPLOYEE' : 'CLIENT';
+  // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti NEMAJU
+  // pristup OTC inter-bank trgovini. Sidebar ih vec filtrira (canAccessOtc),
+  // ali defensive role mapping ovde mora da ih izostavi — inace bi se agent
+  // koji direktno otvori URL pretvorio u "EMPLOYEE" pa video supervizorske
+  // ponude.
+  const { isAdmin, isSupervisor } = useAuth();
+  const myRole: 'CLIENT' | 'EMPLOYEE' = isAdmin || isSupervisor ? 'EMPLOYEE' : 'CLIENT';
 
   const [listings, setListings] = useState<OtcInterbankListing[]>([]);
   const [loading, setLoading] = useState(true);

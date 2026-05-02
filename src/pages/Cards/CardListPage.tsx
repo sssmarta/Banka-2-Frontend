@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { cardService } from '@/services/cardService';
 import { accountService } from '@/services/accountService';
 import type { Card, Account, AuthorizedPerson } from '@/types/celina2';
-import { asArray, formatAmount, formatDate } from '@/utils/formatters';
+import { asArray, formatAmount, formatDate, getErrorMessage, isBusinessAccountType, maskCardNumber } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,29 +17,17 @@ import {
 import { CreditCard, Loader2, Plus, Wifi, Shield, Calendar, UserPlus } from 'lucide-react';
 
 
-function maskCardNumber(number: string): string {
-  const digits = number.replace(/\D/g, '');
-  if (digits.length >= 8) {
-    const first4 = digits.slice(0, 4);
-    const last4 = digits.slice(-4);
-    return `${first4}  ****  ****  ${last4}`;
-  }
-  const last4 = digits.slice(-4);
-  return `****  ****  ****  ${last4}`;
-}
+import {
+  CARD_STATUS_LABELS,
+  CARD_STATUS_BADGE_VARIANT,
+} from '@/utils/cardLabels';
 
-function statusBadgeVariant(status: string) {
-  if (status === 'ACTIVE') return 'success' as const;
-  if (status === 'BLOCKED') return 'warning' as const;
-  if (status === 'DEACTIVATED') return 'secondary' as const;
-  return 'secondary' as const;
+function statusBadgeVariant(status: string): 'success' | 'warning' | 'secondary' {
+  return CARD_STATUS_BADGE_VARIANT[status] ?? 'secondary';
 }
 
 function statusLabel(status: string): string {
-  if (status === 'ACTIVE') return 'Aktivna';
-  if (status === 'BLOCKED') return 'Blokirana';
-  if (status === 'DEACTIVATED') return 'Deaktivirana';
-  return status;
+  return CARD_STATUS_LABELS[status] ?? status;
 }
 
 function cardGradient(cardType: string): string {
@@ -162,7 +150,7 @@ function CreditCardVisual({ card }: { card: Card }) {
 
         {/* Card number */}
         <p className="relative font-mono text-[22px] tracking-[0.22em] drop-shadow-md mt-3">
-          {maskCardNumber(card.cardNumber)}
+          {maskCardNumber(card.cardNumber, { showFirst4: true })}
         </p>
 
         {/* Bottom details */}
@@ -246,7 +234,7 @@ export default function CardListPage() {
   };
 
   const selectedAccount = accounts.find((a) => String(a.id) === selectedAccountId);
-  const isBizAccount = selectedAccount?.accountType === 'BUSINESS' || selectedAccount?.accountType === 'POSLOVNI';
+  const isBizAccount = isBusinessAccountType(selectedAccount?.accountType);
 
   useEffect(() => {
     loadCards();
@@ -277,7 +265,7 @@ export default function CardListPage() {
     const cardsForAccount = asArray<Card>(cards).filter(
       (c) => c.accountNumber === acct?.accountNumber && c.status !== 'DEACTIVATED'
     );
-    const isBusiness = acct?.accountType === 'BUSINESS' || acct?.accountType === 'POSLOVNI';
+    const isBusiness = isBusinessAccountType(acct?.accountType);
     const maxCards = isBusiness ? 1 : 2;
     if (cardsForAccount.length >= maxCards) {
       toast.error(
@@ -333,9 +321,8 @@ export default function CardListPage() {
       setNewApLastName('');
       setNewApEmail('');
       setNewApPhone('');
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Podnosenje zahteva nije uspelo.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Podnosenje zahteva nije uspelo.'));
     } finally {
       setCreatingCard(false);
     }

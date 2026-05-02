@@ -21,26 +21,10 @@ import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 
 type StatusFilter = LoanStatus | 'ALL';
 
-function statusBadgeVariant(status: LoanStatus): 'warning' | 'success' | 'destructive' | 'info' | 'secondary' {
-  if (status === 'PENDING') return 'warning';
-  if (status === 'APPROVED') return 'success';
-  if (status === 'REJECTED') return 'destructive';
-  if (status === 'LATE') return 'destructive';
-  if (status === 'ACTIVE') return 'info';
-  if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
-  return 'secondary';
-}
-
-function statusLabel(status: LoanStatus): string {
-  if (status === 'PENDING') return 'Na cekanju';
-  if (status === 'APPROVED') return 'Odobren';
-  if (status === 'REJECTED') return 'Odbijen';
-  if (status === 'ACTIVE') return 'Aktivan';
-  if (status === 'PAID') return 'Otplacen';
-  if (status === 'PAID_OFF') return 'Prevremeno otplacen';
-  if (status === 'LATE') return 'Kasnjenje';
-  return status;
-}
+import {
+  getLoanStatusBadgeVariant as statusBadgeVariant,
+  getLoanStatusLabel as statusLabel,
+} from '@/utils/loanLabels';
 
 function statusBorderColor(status: LoanStatus): string {
   if (status === 'PENDING') return 'border-l-amber-500';

@@ -15,10 +15,11 @@ import api from '@/services/api';
 import interbankOtcService from '@/services/interbankOtcService';
 import { accountService } from '@/services/accountService';
 import type { Account } from '@/types/celina2';
-import type {
-  InterbankTransaction,
-  OtcInterbankContract,
-  OtcInterbankContractStatus,
+import {
+  isInterbankTerminalStatus,
+  type InterbankTransaction,
+  type OtcInterbankContract,
+  type OtcInterbankContractStatus,
 } from '@/types/celina4';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,13 +35,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { asArray, formatAmount, formatDate, formatDateTime, getErrorMessage } from '@/utils/formatters';
+import { asArray, formatAmount, formatDate, formatDateTime, getErrorMessage, getPreferredAccount } from '@/utils/formatters';
 
-const CONTRACT_STATUS_LABEL: Record<OtcInterbankContractStatus, string> = {
-  ACTIVE: 'Aktivan',
-  EXERCISED: 'Iskoriscen',
-  EXPIRED: 'Istekao',
-};
+import { OTC_CONTRACT_STATUS_LABELS as CONTRACT_STATUS_LABEL } from '@/utils/otcLabels';
 
 const SAGA_PHASES = [
   'Rezervacija sredstava',
@@ -59,10 +56,6 @@ type SagaProgressState = {
 
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background';
-
-function isTerminalStatus(status: InterbankTransaction['status']) {
-  return status === 'COMMITTED' || status === 'ABORTED' || status === 'STUCK';
-}
 
 function getStatusBadgeVariant(status: OtcInterbankContractStatus): 'success' | 'secondary' | 'warning' {
   if (status === 'ACTIVE') return 'success';
@@ -126,13 +119,11 @@ function matchesCurrentUser(contract: OtcInterbankContract, user: ReturnType<typ
     .some((value) => identifiers.has(value));
 }
 
-function getPreferredAccount(accounts: Account[], currency: string): Account | undefined {
-  return accounts.find((account) => account.currency === currency) ?? accounts[0];
-}
-
 export default function OtcInterBankContractsTab() {
-  const { user, isAdmin, isAgent, isSupervisor } = useAuth();
-  const isEmployee = isAdmin || isAgent || isSupervisor;
+  // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti nemaju
+  // pristup OTC inter-bank pregovaranju. Role mapiranje izostavlja isAgent.
+  const { user, isAdmin, isSupervisor } = useAuth();
+  const isEmployee = isAdmin || isSupervisor;
 
   const [contracts, setContracts] = useState<OtcInterbankContract[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -179,7 +170,7 @@ export default function OtcInterBankContractsTab() {
       return;
     }
 
-    if (isTerminalStatus(progressState.transaction.status)) {
+    if (isInterbankTerminalStatus(progressState.transaction.status)) {
       return;
     }
 
@@ -188,9 +179,20 @@ export default function OtcInterBankContractsTab() {
       void (async () => {
         try {
           const { data } = await api.get<InterbankTransaction>(`/interbank/payments/${transactionLookupId}`);
-          setProgressState((current) => current ? { ...current, transaction: data } : current);
+          setProgressState((current) => {
+            if (!current) return current;
+            const tx = current.transaction;
+            if (
+              tx.status === data.status &&
+              tx.currentPhase === data.currentPhase &&
+              tx.failureReason === data.failureReason
+            ) {
+              return current;
+            }
+            return { ...current, transaction: data };
+          });
 
-          if (isTerminalStatus(data.status)) {
+          if (isInterbankTerminalStatus(data.status)) {
             window.clearInterval(intervalId);
             await reloadContracts(filter);
 
@@ -226,7 +228,7 @@ export default function OtcInterBankContractsTab() {
   });
 
   const progressValue = currentPhaseIndex == null ? 15 : (currentPhaseIndex / SAGA_PHASES.length) * 100;
-  const progressTerminal = progressState ? isTerminalStatus(progressState.transaction.status) : false;
+  const progressTerminal = progressState ? isInterbankTerminalStatus(progressState.transaction.status) : false;
 
   const openExerciseDialog = (contract: OtcInterbankContract) => {
     const preferredAccount = getPreferredAccount(accounts, contract.listingCurrency);
@@ -268,7 +270,7 @@ export default function OtcInterBankContractsTab() {
       setPollError(null);
       setProgressState({ contract: selectedContract, transaction });
 
-      if (isTerminalStatus(transaction.status)) {
+      if (isInterbankTerminalStatus(transaction.status)) {
         await reloadContracts(filter);
 
         if (transaction.status === 'COMMITTED') {

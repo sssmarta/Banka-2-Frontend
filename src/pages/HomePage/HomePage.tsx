@@ -23,6 +23,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 import {
+  TRANSACTION_STATUS_LABELS,
+  TRANSACTION_STATUS_BADGE_VARIANT,
+} from '@/utils/transactionLabels';
+import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line,
 } from 'recharts';
@@ -72,26 +76,11 @@ function generateSparkline(endValue: number): number[] {
   return pts;
 }
 
-const currencyGradients: Record<string, string> = {
-  RSD: 'from-blue-500 to-blue-700',
-  EUR: 'from-indigo-500 to-violet-700',
-  USD: 'from-emerald-500 to-green-700',
-  CHF: 'from-red-500 to-rose-700',
-  GBP: 'from-purple-500 to-violet-700',
-  JPY: 'from-orange-500 to-amber-700',
-  CAD: 'from-rose-500 to-pink-700',
-  AUD: 'from-teal-500 to-cyan-700',
-};
-
-const currencySymbols: Record<string, string> = {
-  RSD: 'RSD', EUR: '\u20ac', USD: '$', CHF: 'CHF', GBP: '\u00a3', JPY: '\u00a5', CAD: 'C$', AUD: 'A$',
-};
-
-const currencyFlags: Record<string, string> = {
-  EUR: '\ud83c\uddea\ud83c\uddfa', USD: '\ud83c\uddfa\ud83c\uddf8', CHF: '\ud83c\udde8\ud83c\udded',
-  GBP: '\ud83c\uddec\ud83c\udde7', JPY: '\ud83c\uddef\ud83c\uddf5', CAD: '\ud83c\udde8\ud83c\udde6',
-  AUD: '\ud83c\udde6\ud83c\uddfa', RSD: '\ud83c\uddf7\ud83c\uddf8',
-};
+import {
+  CURRENCY_GRADIENTS as currencyGradients,
+  CURRENCY_SYMBOLS as currencySymbols,
+  CURRENCY_FLAGS as currencyFlags,
+} from '@/utils/currencyMaps';
 
 interface AdminCard {
   title: string;
@@ -701,10 +690,10 @@ export default function HomePage() {
                           {isOut ? '-' : '+'}{formatAmount(tx.amount)} {tx.currency}
                         </p>
                         <Badge
-                          variant={tx.status === 'COMPLETED' ? 'success' : tx.status === 'PENDING' ? 'warning' : 'destructive'}
+                          variant={TRANSACTION_STATUS_BADGE_VARIANT[tx.status] ?? 'destructive'}
                           className="text-[10px] px-1.5 mt-1"
                         >
-                          {tx.status === 'COMPLETED' ? 'Zavrsena' : tx.status === 'PENDING' ? 'Na cekanju' : tx.status}
+                          {TRANSACTION_STATUS_LABELS[tx.status] ?? tx.status}
                         </Badge>
                       </div>
                     </CardContent>

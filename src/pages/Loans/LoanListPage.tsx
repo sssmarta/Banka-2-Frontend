@@ -31,34 +31,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { asArray, formatAmount, formatDate } from '@/utils/formatters';
+import { sortByAmountDesc } from '@/utils/comparators';
+import { percentOf } from '@/utils/numberUtils';
 
-function statusBadgeVariant(status: Loan['status']): 'success' | 'warning' | 'info' | 'destructive' | 'secondary' {
-  if (status === 'ACTIVE') return 'success';
-  if (status === 'PENDING') return 'warning';
-  if (status === 'APPROVED') return 'info';
-  if (status === 'REJECTED') return 'destructive';
-  return 'secondary';
-}
-
-const statusRowBorder: Record<string, string> = {
-  ACTIVE: 'border-l-emerald-500',
-  PENDING: 'border-l-amber-500',
-  APPROVED: 'border-l-blue-500',
-  REJECTED: 'border-l-red-500',
-  LATE: 'border-l-red-500',
-  PAID: 'border-l-gray-400',
-  PAID_OFF: 'border-l-gray-400',
-  CLOSED: 'border-l-gray-300',
-};
-
-function statusLabel(status: Loan['status']): string {
-  if (status === 'ACTIVE') return 'Aktivan';
-  if (status === 'PENDING') return 'Na cekanju';
-  if (status === 'APPROVED') return 'Odobren';
-  if (status === 'REJECTED') return 'Odbijen';
-  if (status === 'CLOSED') return 'Zatvoren';
-  return status;
-}
+import {
+  LOAN_STATUS_ROW_BORDER as statusRowBorder,
+  getLoanStatusBadgeVariant as statusBadgeVariant,
+  getLoanStatusLabel as statusLabel,
+} from '@/utils/loanLabels';
 
 export default function LoanListPage() {
   const navigate = useNavigate();
@@ -78,7 +58,7 @@ export default function LoanListPage() {
           creditService.getMyLoans(),
           creditService.getMyRequests().catch(() => []),
         ]);
-        const sorted = asArray<Loan>(loansData).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+        const sorted = asArray<Loan>(loansData).sort(sortByAmountDesc);
         setLoans(sorted);
         setPendingRequests(asArray<LoanRequest>(requestsData).filter(r => r.status === 'PENDING' || r.status === 'REJECTED'));
       } catch {
@@ -122,7 +102,7 @@ export default function LoanListPage() {
   const progress = useMemo(() => {
     if (!selectedLoan || selectedLoan.amount <= 0) return 0;
     const paidPart = selectedLoan.amount - selectedLoan.remainingDebt;
-    return Math.max(0, Math.min(100, (paidPart / selectedLoan.amount) * 100));
+    return percentOf(paidPart, selectedLoan.amount);
   }, [selectedLoan]);
 
   // Stats
@@ -258,7 +238,7 @@ export default function LoanListPage() {
         <section className="grid gap-4">
           {asArray<Loan>(loans).map((loan) => {
             const isSelected = selectedLoan?.id === loan.id;
-            const loanProgress = Math.max(0, Math.min(100, ((loan.amount - loan.remainingDebt) / loan.amount) * 100 || 0));
+            const loanProgress = percentOf(loan.amount - loan.remainingDebt, loan.amount);
             return (
               <Card key={loan.id} className={`rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 border-l-4 ${statusRowBorder[loan.status] || 'border-l-transparent'}`}>
                 <CardHeader className="pb-3">
@@ -457,7 +437,7 @@ export default function LoanListPage() {
                       await creditService.earlyRepayment(selectedLoan.id);
                       toast.success('Zahtev za prevremenu otplatu je uspešno podnet.');
                       const data = await creditService.getMyLoans();
-                      setLoans(asArray<Loan>(data).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)));
+                      setLoans(asArray<Loan>(data).sort(sortByAmountDesc));
                       setSelectedLoan(null);
                     } catch {
                       toast.error('Prevremena otplata nije uspela.');

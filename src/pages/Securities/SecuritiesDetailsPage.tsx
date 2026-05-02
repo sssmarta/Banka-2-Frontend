@@ -20,7 +20,7 @@ import {
 import type { Listing, ListingDailyPrice, OptionChain } from '@/types/celina3';
 import listingService from '@/services/listingService';
 import { toast } from '@/lib/notify';
-import { formatPrice, formatVolumeCompact } from '@/utils/formatters';
+import { formatPrice, formatVolumeCompact, toIsoDateOnly } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -100,7 +100,7 @@ function generateFakeHistory(basePrice: number, days: number): ListingDailyPrice
     const volume = Math.floor(avgVolume * volShock * weekendFactor * (0.7 + Math.random() * 0.6));
 
     data.push({
-      date: date.toISOString().split('T')[0],
+      date: toIsoDateOnly(date),
       price: Math.round(price * 100) / 100,
       high: Math.round(Math.max(high, price) * 100) / 100,
       low: Math.round(Math.max(Math.min(low, price), price * 0.9) * 100) / 100,

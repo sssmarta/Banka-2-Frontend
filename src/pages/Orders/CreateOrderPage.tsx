@@ -53,11 +53,7 @@ const DIRECTION_LABELS: Record<OrderDirection, string> = {
   [OrderDirection.SELL]: 'Prodaja',
 };
 
-const LISTING_TYPE_LABELS: Record<ListingType, string> = {
-  [ListingType.STOCK]: 'Akcija',
-  [ListingType.FUTURES]: 'Futures',
-  [ListingType.FOREX]: 'Forex',
-};
+import { LISTING_TYPE_LABELS } from '@/utils/orderLabels';
 
 const createOrderSchema = z
   .object({
@@ -182,20 +178,7 @@ function getPriceSourceLabel(orderType: OrderType, direction: OrderDirection): s
   return 'Limit vrednost';
 }
 
-function getCommission(orderType: OrderType, approximatePrice: number, isEmployee: boolean = false): number {
-  // Employees/actuaries trade from bank accounts — commission goes to bank (i.e. no net commission)
-  if (isEmployee) return 0;
-  if (approximatePrice <= 0) return 0;
-
-  // Spec: Market/Stop → min(14% * price, $7), Limit/StopLimit → min(24% * price, $12)
-  // "u zavisnosti od toga koji iznos je manji"
-  const usesLimitPricing =
-    orderType === OrderType.LIMIT || orderType === OrderType.STOP_LIMIT;
-  const rate = usesLimitPricing ? 0.24 : 0.14;
-  const cap = usesLimitPricing ? 12 : 7;
-
-  return Math.min(approximatePrice * rate, cap);
-}
+import { getOrderCommission as getCommission } from '@/utils/orderCalculations';
 
 /**
  * FX marza koju banka naplacuje klijentima kad trguju hartijom u valuti

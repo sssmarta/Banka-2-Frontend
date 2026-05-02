@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { asArray, formatAmount, formatDateTime, getErrorMessage } from '@/utils/formatters';
+import { asArray, formatAmount, formatDateTime, getErrorMessage, getPreferredAccount } from '@/utils/formatters';
 import { computeOfferDeviation } from './otcOfferUtils';
 
 type OpenState =
@@ -40,8 +40,10 @@ const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background';
 
 export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange }: Props) {
-  const { user, isAdmin, isAgent, isSupervisor } = useAuth();
-  const isEmployee = isAdmin || isAgent || isSupervisor;
+  // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti nemaju
+  // pristup OTC inter-bank pregovaranju. Role mapiranje izostavlja isAgent.
+  const { user, isAdmin, isSupervisor } = useAuth();
+  const isEmployee = isAdmin || isSupervisor;
 
   const [offers, setOffers] = useState<OtcInterbankOffer[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -115,11 +117,8 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange 
     onUnreadChange(unread);
   }, [activeOffers, loadingOffers, user?.id, onUnreadChange]);
 
-  const pickMatchingAccount = (currency: string): Account | undefined =>
-    accounts.find((account) => account.currency === currency) ?? accounts[0];
-
   const openAcceptForm = (offer: OtcInterbankOffer) => {
-    const preferred = pickMatchingAccount(offer.listingCurrency);
+    const preferred = getPreferredAccount(accounts, offer.listingCurrency);
     setAcceptAccountByOfferId((prev) => ({
       ...prev,
       [offer.offerId]: prev[offer.offerId] ?? String(preferred?.id ?? ''),

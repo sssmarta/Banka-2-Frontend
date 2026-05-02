@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { formatDate, formatBalance, formatAccountNumber } from '@/utils/formatters';
+import { parseNumber } from '@/utils/numberUtils';
 import VerificationModal from '@/components/shared/VerificationModal';
 import {
   Table,
@@ -34,31 +35,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-const statusLabels: Record<string, string> = {
-  ACTIVE: 'Aktivan',
-  BLOCKED: 'Blokiran',
-  INACTIVE: 'Neaktivan',
-};
-
-const statusVariant: Record<string, 'success' | 'destructive' | 'secondary'> = {
-  ACTIVE: 'success',
-  BLOCKED: 'destructive',
-  INACTIVE: 'secondary',
-};
-
-const txStatusLabels: Record<string, string> = {
-  PENDING: 'Na cekanju',
-  COMPLETED: 'Zavrsena',
-  REJECTED: 'Odbijena',
-  CANCELLED: 'Otkazana',
-};
-
-const txStatusVariant: Record<string, 'warning' | 'success' | 'destructive' | 'secondary'> = {
-  PENDING: 'warning',
-  COMPLETED: 'success',
-  REJECTED: 'destructive',
-  CANCELLED: 'secondary',
-};
+import {
+  ACCOUNT_STATUS_LABELS as statusLabels,
+  ACCOUNT_STATUS_BADGE_VARIANT as statusVariant,
+  TRANSACTION_STATUS_LABELS as txStatusLabels,
+  TRANSACTION_STATUS_BADGE_VARIANT as txStatusVariant,
+} from '@/utils/transactionLabels';
 
 export default function BusinessAccountDetailsPage() {
   const navigate = useNavigate();
@@ -89,14 +71,14 @@ export default function BusinessAccountDetailsPage() {
         const accountData = {
           ...raw,
           currency: raw.currency || (rawAny.currencyCode as string) || 'RSD',
-          availableBalance: Number(raw.availableBalance) || 0,
-          balance: Number(raw.balance) || 0,
-          reservedBalance: Number(raw.reservedBalance) || Number(rawAny.reservedFunds) || 0,
-          dailyLimit: Number(raw.dailyLimit) || 0,
-          monthlyLimit: Number(raw.monthlyLimit) || 0,
-          dailySpending: Number(raw.dailySpending) || 0,
-          monthlySpending: Number(raw.monthlySpending) || 0,
-          maintenanceFee: Number(raw.maintenanceFee) || 0,
+          availableBalance: parseNumber(raw.availableBalance),
+          balance: parseNumber(raw.balance),
+          reservedBalance: parseNumber(raw.reservedBalance) || parseNumber(rawAny.reservedFunds),
+          dailyLimit: parseNumber(raw.dailyLimit),
+          monthlyLimit: parseNumber(raw.monthlyLimit),
+          dailySpending: parseNumber(raw.dailySpending),
+          monthlySpending: parseNumber(raw.monthlySpending),
+          maintenanceFee: parseNumber(raw.maintenanceFee),
         } as Account;
         setAccount(accountData);
         setCompanyInfo((rawAny.company as Firm) || (rawAny.firm as Firm) || null);

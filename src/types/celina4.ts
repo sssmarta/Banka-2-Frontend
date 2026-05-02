@@ -256,6 +256,17 @@ export type InterbankPaymentStatus =
   | 'ABORTED'
   | 'STUCK';
 
+/** Statusi posle kojih nema vise tranzicija — koristi se za polling break-out
+ *  i za "Zatvori" dugme u statusnom modal-u (Spec Celina 5 (Nova) §75-90). */
+export const INTERBANK_TERMINAL_STATUSES: readonly InterbankPaymentStatus[] = [
+  'COMMITTED',
+  'ABORTED',
+  'STUCK',
+] as const;
+
+export const isInterbankTerminalStatus = (status: InterbankPaymentStatus): boolean =>
+  (INTERBANK_TERMINAL_STATUSES as readonly string[]).includes(status);
+
 export interface InterbankPaymentInitiateRequest {
   senderAccountNumber: string;
   receiverAccountNumber: string;
