@@ -434,7 +434,18 @@ export default function OrdersListPage() {
                               <p>Završen: <span className="font-medium">{order.isDone ? 'Da' : 'Ne'}</span></p>
                               <p>All or None: <span className="font-medium">{order.allOrNone ? 'Da' : 'Ne'}</span></p>
                               <p>Margin: <span className="font-medium">{order.margin ? 'Da' : 'Ne'}</span></p>
-                              <p>After Hours: <span className="font-medium">{order.afterHours ? 'Da' : 'Ne'}</span></p>
+                              <p>
+                                After Hours: <span className="font-medium">{order.afterHours ? 'Da' : 'Ne'}</span>
+                                {order.afterHours && (
+                                  <span
+                                    data-testid={`order-${order.id}-afterhours-warning`}
+                                    className="ml-2 inline-flex items-center gap-1 rounded-md bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                                    title="Order kreiran u after-hours rezimu — svaki fill kasni dodatnih 30 min po spec-u"
+                                  >
+                                    +30 min/fill
+                                  </span>
+                                )}
+                              </p>
                               <p>Odobrio: <span className="font-medium">{order.approvedBy || '-'}</span></p>
                               <p>Kreiran: <span className="font-medium">{formatDateTime(order.createdAt)}</span></p>
                               <p>Poslednja izmena: <span className="font-medium">{formatDateTime(order.lastModification)}</span></p>

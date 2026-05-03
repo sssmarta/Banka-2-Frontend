@@ -11,6 +11,69 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    // Spec UX polish (Runda LOW polish 2): bundle splittovanje da
+    // initial JS bundle ne bude > 500 kB. Vendor chunk-ove razdvajamo
+    // tako da se npm libs cache-iraju izmedju deploymenta — promena
+    // jedne stranice ne invalidira ceo bundle. GlobeView (three.js +
+    // globe.gl ~1.8MB) i ArbitroOverlay (~250KB Liquid Glass CSS) su
+    // vec lazy-loaded preko React.lazy.
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return undefined
+          // React + react-dom + react-router u "react-vendor"
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router') ||
+            id.includes('node_modules/scheduler/')
+          ) {
+            return 'react-vendor'
+          }
+          // Radix-ui komponente
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'radix-vendor'
+          }
+          // Lucide ikone
+          if (id.includes('node_modules/lucide-react/')) {
+            return 'icons-vendor'
+          }
+          // react-hook-form + zod
+          if (
+            id.includes('node_modules/react-hook-form/') ||
+            id.includes('node_modules/@hookform/') ||
+            id.includes('node_modules/zod/')
+          ) {
+            return 'forms-vendor'
+          }
+          // axios + odgovor
+          if (id.includes('node_modules/axios/')) {
+            return 'http-vendor'
+          }
+          // Recharts + d3-* + tranzitivne deps idu u glavni `vendor` chunk
+          // (NE u zaseban charts-vendor) jer Recharts 3.x ima ugnjezdjene
+          // imports u victory-vendor/internmap/eventemitter3/decimal.js-light/
+          // react-smooth — ako su ti distribuirani u razlicite chunk-ove,
+          // Rollup pravi circular chunk dependency koji u minified bundle-u
+          // puca sa "E is not a function" runtime greskom (Vite 7 + Rollup 4
+          // poznata kombinacija). Code split benefit je ~400KB ali stabilnost
+          // > optimizacija. Vidi commit history za circular chunk warnings.
+          // Three.js + globe.gl + three-globe takodje idu u glavni `vendor`
+          // chunk (NE u zaseban three-vendor) iz istog razloga kao recharts:
+          // three-globe.gl koristi d3-* iste kao recharts, pa split chunk
+          // pravi circular dependency (`three-vendor -> vendor -> three-vendor`)
+          // koja u runtime-u puca sa "nee is not a constructor" jer minified
+          // klasa nije inicijalizovana iz drugog chunk-a u trenutku importa.
+          // Vendor chunk je sad ~2.5MB ali GlobeView je vec lazy-loaded preko
+          // dynamic import() pa user na login page-u ne uci three.js uopste.
+          // Sve ostalo iz node_modules ide u "vendor"
+          return 'vendor'
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

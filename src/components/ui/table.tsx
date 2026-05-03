@@ -16,12 +16,25 @@ const Table = React.forwardRef<
 ))
 Table.displayName = "Table"
 
-const TableHeader = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
-))
+interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+  /** Spec UX polish: kad je `true`, header ostaje fiksiran pri scroll-u
+   *  unutar `Table` overflow-auto containera. Bez efekta na kratke tabele. */
+  sticky?: boolean
+}
+
+const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeaderProps>(
+  ({ className, sticky = false, ...props }, ref) => (
+    <thead
+      ref={ref}
+      className={cn(
+        "[&_tr]:border-b",
+        sticky && "sticky top-0 z-10 bg-background shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)]",
+        className,
+      )}
+      {...props}
+    />
+  ),
+)
 TableHeader.displayName = "TableHeader"
 
 const TableBody = React.forwardRef<

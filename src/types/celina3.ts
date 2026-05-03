@@ -194,6 +194,40 @@ export interface TaxRecord {
   currency: string;
 }
 
+/**
+ * Detaljni breakdown poreske obaveze korisnika — koje SELL transakcije su
+ * doprinele profitu/gubitku, sa profit per-pair (BUY-SELL) granularnoscu.
+ * Spec Celina 3 linija ~525: "stranica ima detalje koje su transakcije doprinele".
+ *
+ * BE endpoint: GET /tax/{userId}/details?userType=CLIENT|EMPLOYEE&year=&month=
+ * Ako BE jos ne implementira ovaj endpoint, FE handler hvata 404 i prikazuje
+ * graceful "Detaljan prikaz nije dostupan" placeholder.
+ */
+export interface TaxBreakdownItem {
+  orderId: number;
+  listingTicker: string;
+  listingType: string;
+  source: 'STOCK_ORDER' | 'OTC_CONTRACT';
+  quantity: number;
+  buyPrice: number;
+  sellPrice: number;
+  profit: number;
+  taxAmount: number;
+  currency: string;
+  executedAt: string;
+}
+
+export interface TaxBreakdownResponse {
+  userId: number;
+  userType: string;
+  userName: string;
+  year: number;
+  month?: number;
+  totalProfit: number;
+  totalTax: number;
+  items: TaxBreakdownItem[];
+}
+
 // --- Berze ---
 
 export interface Exchange {

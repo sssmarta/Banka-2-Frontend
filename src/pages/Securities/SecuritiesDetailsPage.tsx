@@ -684,33 +684,42 @@ export default function SecuritiesDetailsPage() {
                               );
                             }
 
+                            // Spec Celina 3 (linija 467-471): tabelu deliti na cetvrtine sa
+                            // shared price kao centrom. ITM polja (gore-levo CALL i dole-desno
+                            // PUT) treba da budu zelena; OTM (gore-desno PUT i dole-levo CALL)
+                            // crvena ili bela. Bojenje ide po koloni (CALL deo / PUT deo)
+                            // nezavisno, ne celom redu — tako se 4 cetvrtine vizuelno
+                            // razdvajaju oko centralnog Strike separatora.
+                            const callCellBg = callITM
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/15'
+                              : 'bg-red-500/10 hover:bg-red-500/15';
+                            const putCellBg = putITM
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/15'
+                              : 'bg-red-500/10 hover:bg-red-500/15';
                             rows.push(
                               <TableRow
                                 key={strike}
-                                className={`transition-colors ${
-                                  callITM
-                                    ? 'bg-emerald-500/10 hover:bg-emerald-500/15'
-                                    : putITM
-                                    ? 'bg-emerald-500/10 hover:bg-emerald-500/15'
-                                    : 'bg-red-500/10 hover:bg-red-500/15'
-                                }`}
+                                className="transition-colors"
+                                data-testid={`option-row-${strike}`}
+                                data-call-itm={callITM ? 'true' : 'false'}
+                                data-put-itm={putITM ? 'true' : 'false'}
                               >
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${callCellBg}`}>
                                   {call ? formatPrice(call.bid) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${callCellBg}`}>
                                   {call ? formatPrice(call.ask) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums font-semibold">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums font-semibold ${callCellBg}`}>
                                   {call ? formatPrice(call.price) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${callCellBg}`}>
                                   {call ? formatVolumeCompact(call.volume) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${callCellBg}`}>
                                   {call ? `${(call.impliedVolatility * 100).toFixed(1)}%` : '-'}
                                 </TableCell>
-                                <TableCell className="text-center text-xs font-semibold">
+                                <TableCell className={`text-center text-xs font-semibold ${callCellBg}`}>
                                   {callITM ? (
                                     <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] px-1.5">ITM</Badge>
                                   ) : (
@@ -720,26 +729,26 @@ export default function SecuritiesDetailsPage() {
                                 <TableCell className="text-center font-mono text-xs tabular-nums font-bold bg-muted/30">
                                   {formatPrice(strike)}
                                 </TableCell>
-                                <TableCell className="text-center text-xs font-semibold">
+                                <TableCell className={`text-center text-xs font-semibold ${putCellBg}`}>
                                   {putITM ? (
                                     <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] px-1.5">ITM</Badge>
                                   ) : (
                                     <Badge className="bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20 text-[10px] px-1.5">OTM</Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${putCellBg}`}>
                                   {put ? formatPrice(put.bid) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${putCellBg}`}>
                                   {put ? formatPrice(put.ask) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums font-semibold">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums font-semibold ${putCellBg}`}>
                                   {put ? formatPrice(put.price) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${putCellBg}`}>
                                   {put ? formatVolumeCompact(put.volume) : '-'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs tabular-nums">
+                                <TableCell className={`text-center font-mono text-xs tabular-nums ${putCellBg}`}>
                                   {put ? `${(put.impliedVolatility * 100).toFixed(1)}%` : '-'}
                                 </TableCell>
                               </TableRow>

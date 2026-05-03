@@ -1517,3 +1517,49 @@ describe('Kompletni lifecycle flowovi', () => {
     cy.contains('MSFT').should('exist');
   });
 });
+
+// ============================================================
+//  TAX DETAIL DIALOG (preuzeto iz polish migracije 03.05)
+// ============================================================
+
+describe('Tax detail view modal', () => {
+  const mockTaxRecords = [
+    { id: 1, userId: 100, userName: 'Marko Petrovic', userType: 'CLIENT', totalProfit: 50000, taxOwed: 7500, taxPaid: 5000, currency: 'RSD' },
+  ];
+
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/tax', { statusCode: 200, body: mockTaxRecords });
+    cy.intercept('GET', '**/api/currency-rates**', { statusCode: 200, body: [] });
+  });
+
+  it('klik na red otvara TaxDetailDialog sa breakdown podacima', () => {
+    cy.intercept('GET', '**/api/tax/100/details**', {
+      statusCode: 200,
+      body: {
+        userId: 100, userType: 'CLIENT', userName: 'Marko Petrovic',
+        year: 2026, month: 5, totalProfit: 50000, totalTax: 7500,
+        items: [
+          {
+            orderId: 11, listingTicker: 'AAPL', listingType: 'STOCK', source: 'STOCK_ORDER',
+            quantity: 10, buyPrice: 150, sellPrice: 200, profit: 500, taxAmount: 75,
+            currency: 'USD', executedAt: '2026-04-15T10:00:00Z',
+          },
+        ],
+      },
+    });
+
+    cy.visit('/employee/tax', { onBeforeLoad: (win) => setupSupervisorSession(win) });
+    cy.contains('Marko Petrovic').should('be.visible');
+    cy.get('[data-testid="tax-row-CLIENT-100"]').click();
+    cy.contains('Detalji poreza').should('be.visible');
+    cy.contains('AAPL').should('be.visible');
+  });
+
+  it('graceful 404 fallback prikazuje Detaljan prikaz nije dostupan', () => {
+    cy.intercept('GET', '**/api/tax/100/details**', { statusCode: 404 });
+    cy.visit('/employee/tax', { onBeforeLoad: (win) => setupSupervisorSession(win) });
+    cy.contains('Marko Petrovic').should('be.visible');
+    cy.get('[data-testid="tax-row-CLIENT-100"]').click();
+    cy.get('[data-testid="tax-detail-unavailable"]').should('be.visible');
+  });
+});

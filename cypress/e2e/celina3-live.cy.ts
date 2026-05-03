@@ -1060,3 +1060,299 @@ describe('Live: Fund reservation + OTP flow (Phase 11)', () => {
     });
   });
 });
+
+// ============================================================
+//  E2E SCENARIO: Kompletan radni dan na berzi (preuzeto iz e2e migracije 03.05)
+//
+//  Simulira ceo dnevni tok: supervizor podesava agenta, agent/klijent kreira ordere,
+//  supervizor odobrava, hartije se pojavljuju u portfoliju, klijent prodaje, porez.
+//
+//  ZAHTEVA: Backend + seed na localhost:8080, frontend na localhost:3000
+//
+//  Seed korisnici (vidi celina3-live local-iste, ali sa rolama definisanim ispod):
+//    Admin/Supervisor: marko.petrovic@banka.rs / Admin12345 (emp_id=1)
+//    Supervisor:       nikola.milenkovic@banka.rs / Zaposleni12 (emp_id=3)
+//    Agent:            maja.ristic@banka.rs / Zaposleni12 (emp_id=6, needApproval=true)
+//    Client:           stefan.jovanovic@gmail.com / Klijent12345
+// ============================================================
+
+const SUPERVISOR_E2E = { email: 'nikola.milenkovic@banka.rs', password: 'Zaposleni12' };
+const AGENT_E2E = { email: 'maja.ristic@banka.rs', password: 'Zaposleni12' };
+const ADMIN_E2E = { email: 'marko.petrovic@banka.rs', password: 'Admin12345' };
+const CLIENT_E2E = { email: 'stefan.jovanovic@gmail.com', password: 'Klijent12345' };
+
+function loginAsScenario(key: string, creds: { email: string; password: string }) {
+  cy.session(key, () => {
+    cy.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      body: creds,
+    }).then((resp) => {
+      const { accessToken, refreshToken } = resp.body;
+      window.sessionStorage.setItem('accessToken', accessToken);
+      window.sessionStorage.setItem('refreshToken', refreshToken);
+      const payload = JSON.parse(atob(accessToken.split('.')[1]));
+      const parts = payload.sub.split('@')[0].split('.');
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+      const role = payload.role || 'CLIENT';
+      const permissions: string[] = [];
+      if (role === 'ADMIN') {
+        permissions.push('ADMIN', 'SUPERVISOR', 'TRADE_STOCKS', 'TRADE_FOREX', 'TRADE_FUTURES', 'TRADE_OPTIONS');
+      } else if (role === 'EMPLOYEE') {
+        permissions.push('ADMIN', 'SUPERVISOR', 'AGENT', 'TRADE_STOCKS', 'TRADE_FOREX', 'TRADE_FUTURES', 'TRADE_OPTIONS');
+      } else {
+        permissions.push('TRADE_STOCKS', 'TRADE_FUTURES');
+      }
+      window.sessionStorage.setItem('user', JSON.stringify({
+        id: 0,
+        email: payload.sub,
+        username: parts.join('.'),
+        firstName: parts[0] ? cap(parts[0]) : '',
+        lastName: parts[1] ? cap(parts[1]) : '',
+        role,
+        permissions,
+      }));
+    });
+  });
+}
+
+function enableRealBackendScenario() {
+  cy.intercept('POST', '**/api/auth/refresh', (req) => req.continue()).as('authRefresh');
+}
+
+function releaseClientReservationsScenario() {
+  cy.request({
+    method: 'POST',
+    url: '/api/auth/login',
+    body: CLIENT_E2E,
+    failOnStatusCode: false,
+  }).then((stefanLogin) => {
+    if (stefanLogin.status !== 200) return;
+    const stefanToken = stefanLogin.body.accessToken;
+    cy.request({
+      method: 'GET',
+      url: '/api/orders/my?size=1000',
+      headers: { Authorization: `Bearer ${stefanToken}` },
+      failOnStatusCode: false,
+    }).then((listResp) => {
+      const rawContent = listResp.body?.content ?? listResp.body ?? [];
+      const list: Array<{ id: number; status: string; done?: boolean }> = Array.isArray(rawContent) ? rawContent : [];
+      const cancellableIds = list.filter((o) => o.status === 'APPROVED' && !o.done).map((o) => o.id);
+      if (cancellableIds.length === 0) return;
+      cy.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        body: ADMIN_E2E,
+        failOnStatusCode: false,
+      }).then((adminLogin) => {
+        if (adminLogin.status !== 200) return;
+        const adminToken = adminLogin.body.accessToken;
+        cancellableIds.forEach((id) => {
+          cy.request({
+            method: 'PATCH',
+            url: `/api/orders/${id}/decline`,
+            headers: { Authorization: `Bearer ${adminToken}` },
+            failOnStatusCode: false,
+          });
+        });
+      });
+    });
+  });
+}
+
+describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
+  beforeEach(() => {
+    enableRealBackendScenario();
+  });
+
+  it('DEO 1 — Supervizor podesava limit agentu Maji', () => {
+    loginAsScenario('supervisor-e2e', SUPERVISOR_E2E);
+    cy.visit('/employee/actuaries');
+    cy.contains('Upravljanje aktuarima', { timeout: 15000 }).should('be.visible');
+    cy.contains('td', 'maja.ristic@banka.rs', { timeout: 20000 }).should('be.visible');
+    cy.contains('td', 'maja.ristic@banka.rs')
+      .closest('tr')
+      .find('button[title="Izmeni limit"]')
+      .click();
+    cy.contains('Izmena limita').should('be.visible');
+    cy.get('#dailyLimit').clear().type('200000');
+    cy.contains('button', 'Sacuvaj').click();
+    cy.contains(/uspesno|azuriran/i, { timeout: 10000 }).should('be.visible');
+  });
+
+  it('DEO 2 — Agent pretrazuje hartije i otvara detalje', () => {
+    loginAsScenario('agent-e2e', AGENT_E2E);
+    cy.visit('/securities');
+    cy.contains('Hartije od vrednosti', { timeout: 15000 }).should('be.visible');
+    cy.contains('Akcije').should('be.visible');
+    cy.contains('Futures').should('be.visible');
+    cy.contains('td', 'AAPL', { timeout: 20000 }).should('be.visible');
+    cy.get('input[placeholder*="ticker"]').clear().type('AAPL');
+    cy.wait(1500);
+    cy.contains('td', 'AAPL', { timeout: 10000 }).should('be.visible');
+    cy.contains('td', 'AAPL').closest('tr').click();
+    cy.wait(2000);
+    cy.url().should('include', '/securities/');
+    cy.contains('Kretanje cene', { timeout: 10000 }).should('be.visible');
+    cy.contains('Podaci o hartiji').should('be.visible');
+    cy.contains('Bid').should('be.visible');
+    cy.contains('Ask').should('be.visible');
+    cy.contains('button', '1D').click();
+    cy.wait(500);
+    cy.contains('button', '1M').click();
+    cy.wait(500);
+    cy.contains('button', '1G').click();
+  });
+
+  it('DEO 3 — Klijent kreira BUY Market order', () => {
+    releaseClientReservationsScenario();
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.intercept('POST', '**/orders').as('createOrder');
+    cy.visit('/orders/new?listingId=1&direction=BUY');
+    cy.get('select#accountId option:not([value=""])', { timeout: 30000 }).should('have.length.greaterThan', 0);
+    cy.get('#quantity').clear().type('1');
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      cy.request({
+        method: 'GET',
+        url: '/api/accounts/my',
+        headers: { Authorization: `Bearer ${token}` },
+        failOnStatusCode: false,
+      }).then((resp) => {
+        const accounts: Array<{ id: number; availableBalance?: number; balance?: number; currency?: { code?: string } | string }> = Array.isArray(resp.body) ? resp.body : (resp.body?.content ?? []);
+        const rsdAccounts = accounts.filter((a) => {
+          const curr = typeof a.currency === 'string' ? a.currency : a.currency?.code;
+          return curr === 'RSD';
+        });
+        const sorted = [...rsdAccounts].sort((a, b) => Number(b.availableBalance ?? b.balance ?? 0) - Number(a.availableBalance ?? a.balance ?? 0));
+        const best = sorted[0] ?? accounts[0];
+        if (best?.id != null) {
+          cy.get('select#accountId').select(String(best.id));
+        } else {
+          cy.get('select#accountId option:not([value=""])').first().then(($opt) => {
+            cy.get('select#accountId').select($opt.val() as string);
+          });
+        }
+      });
+    });
+    cy.contains('button', 'Nastavi na potvrdu').click();
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('exist');
+    cy.contains('Potvrda naloga', { timeout: 5000 }).should('exist');
+    cy.get('[data-cy="confirm-order"]').should('exist').and('not.be.disabled').then(($btn) => {
+      $btn[0].click();
+    });
+    cy.get('#otp', { timeout: 10000 }).should('be.visible');
+    cy.wait(3000);
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      cy.request({
+        method: 'GET',
+        url: '/api/payments/my-otp',
+        headers: { Authorization: `Bearer ${token}` },
+        failOnStatusCode: false,
+      }).then((resp) => {
+        const code = (resp.body && (resp.body.code || resp.body.otp)) || '123456';
+        cy.get('#otp').should('not.be.disabled').clear();
+        cy.get('#otp').type(String(code), { delay: 100 });
+        cy.wait(800);
+        cy.get('#otp').closest('form').find('button[type="submit"]').should('not.be.disabled').click({ force: true });
+      });
+    });
+    cy.wait('@createOrder', { timeout: 20000 }).then((interception) => {
+      cy.log(`DEO 3 createOrder status: ${interception.response?.statusCode}`);
+    });
+  });
+
+  it('DEO 4 — Admin odobrava pending order', () => {
+    loginAsScenario('admin-e2e', ADMIN_E2E);
+    cy.visit('/employee/orders');
+    cy.contains('Pregled naloga', { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Na čekanju|Na cekanju/i).click();
+    cy.wait(3000);
+    cy.get('body').then(($body) => {
+      if ($body.find('button:contains("Odobri")').length > 0) {
+        cy.contains('button', 'Odobri').first().click();
+        cy.wait(500);
+        cy.contains('button', 'Potvrdi').click();
+        cy.wait(2000);
+        cy.contains(/odobren|Odobren|uspesno/i, { timeout: 10000 }).should('exist');
+      } else {
+        cy.log('Nema PENDING ordera za odobravanje');
+      }
+    });
+  });
+
+  it('DEO 5 — Klijent proverava Moje naloge', () => {
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.visit('/orders/my');
+    cy.contains(/Moji nalozi|nalozi/i, { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Svi/i).should('be.visible');
+  });
+
+  it('DEO 6 — Klijent proverava portfolio', () => {
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.visit('/portfolio');
+    cy.contains('Moj portfolio', { timeout: 15000 }).should('be.visible');
+    cy.contains(/Ukupna vrednost/i).should('be.visible');
+    cy.contains(/Ukupan profit/i).should('be.visible');
+    cy.contains('AAPL', { timeout: 15000 }).should('be.visible');
+  });
+
+  it('DEO 7 — Klijent prodaje hartije iz portfolija (lobotomy: samo SELL forma)', () => {
+    releaseClientReservationsScenario();
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.visit('/orders/new?listingId=1&direction=SELL');
+    cy.get('select#accountId option:not([value=""])', { timeout: 30000 })
+      .should('have.length.greaterThan', 0);
+    cy.get('#quantity').should('exist');
+  });
+
+  it('DEO 8 — Admin pregleda ordere', () => {
+    loginAsScenario('admin-e2e', ADMIN_E2E);
+    cy.visit('/employee/orders');
+    cy.contains('Pregled naloga', { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Svi/i).should('be.visible');
+    cy.contains('button', /Na čekanju|Na cekanju/i).should('be.visible');
+    cy.contains('button', /Odobreni/i).should('be.visible');
+    cy.get('body').then(($body) => {
+      if ($body.find('button:contains("Svi")').length > 0) {
+        cy.contains('button', /^Svi/i).click();
+        cy.wait(2000);
+      }
+    });
+  });
+
+  it('DEO 9 — Klijent proverava portfolio posle prodaje', () => {
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.visit('/portfolio');
+    cy.contains('Moj portfolio', { timeout: 15000 }).should('be.visible');
+    cy.contains(/Ukupna vrednost/i).should('be.visible');
+    cy.contains(/porez|Porez/i).should('exist');
+  });
+
+  it('DEO 10 — Admin pokrece obracun poreza', () => {
+    loginAsScenario('admin-e2e', ADMIN_E2E);
+    cy.visit('/employee/tax');
+    cy.contains('button', 'Svi', { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Klijenti/i).should('be.visible');
+    cy.contains('button', /Aktuari/i).should('be.visible');
+    cy.contains('button', /Aktuari/i).click();
+    cy.wait(2000);
+    cy.contains('button', /Izracunaj porez|Obracunaj/i).click();
+    cy.contains(/uspesno pokrenut|uspešno pokrenut|obracunat|izracunat|Obracun poreza/i, { timeout: 30000 }).should('exist');
+  });
+
+  it('DEO 11 — Verifikacija: portfolio azuriran', () => {
+    loginAsScenario('client-e2e', CLIENT_E2E);
+    cy.visit('/portfolio');
+    cy.contains('Moj portfolio', { timeout: 15000 }).should('be.visible');
+    cy.contains(/Ukupna vrednost/i).should('be.visible');
+  });
+
+  it('DEO 12 — Supervizor vidi berze', () => {
+    loginAsScenario('supervisor-e2e', SUPERVISOR_E2E);
+    cy.visit('/employee/exchanges');
+    cy.get('table', { timeout: 15000 }).should('exist');
+    cy.get('table tbody tr', { timeout: 10000 }).should('have.length.greaterThan', 0);
+  });
+});

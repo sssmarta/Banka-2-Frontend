@@ -412,6 +412,57 @@ describe('EmployeeEditPage', () => {
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 
+    it('shows fund value, liquidity, holdings count, and account number in reassign dialog', async () => {
+      mockGetById.mockResolvedValueOnce(supervisorEmployee);
+      mockListByManager.mockResolvedValueOnce([
+        {
+          id: 1,
+          name: 'Alpha Fund',
+          description: 'Tech sector fund focused on AI stocks',
+          managerEmployeeId: 5,
+          managerName: 'Marko',
+          fundValue: 5000000,
+          liquidAmount: 1500000,
+          profit: 500000,
+          minimumContribution: 1000,
+          accountNumber: '222001100000000001',
+          holdings: [
+            { listingId: 11, ticker: 'AAPL', name: 'Apple', quantity: 50, currentPrice: 175, change: 2, volume: 100, initialMarginCost: 9650, acquisitionDate: '2026-03-01' },
+            { listingId: 12, ticker: 'MSFT', name: 'Microsoft', quantity: 30, currentPrice: 410, change: -1, volume: 80, initialMarginCost: 13540, acquisitionDate: '2026-04-01' },
+          ],
+          performance: [],
+          inceptionDate: '2026-01-01',
+        },
+      ]);
+
+      const user = userEvent.setup();
+      renderWithProviders(<EmployeeEditPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(mockListByManager).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByLabelText(Permission.SUPERVISOR));
+      await user.click(screen.getByRole('button', { name: /sacuvaj izmene/i }));
+
+      const fundItem = await screen.findByTestId('reassign-fund-item-1');
+
+      // Description je vidljiv
+      expect(fundItem).toHaveTextContent(/Tech sector fund/i);
+      // Vrednost fonda
+      expect(fundItem).toHaveTextContent(/Vrednost fonda/i);
+      // Likvidnost
+      expect(fundItem).toHaveTextContent(/Likvidnost/i);
+      // Hartije count = 2
+      expect(fundItem).toHaveTextContent(/Hartije/i);
+      expect(fundItem).toHaveTextContent('2'); // 2 holdings
+      // Last 4 of account
+      expect(fundItem).toHaveTextContent(/0001/);
+    });
+
     it('confirms the dialog and calls update', async () => {
       mockGetById.mockResolvedValueOnce(supervisorEmployee);
       mockListByManager.mockResolvedValueOnce([

@@ -32,6 +32,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { formatAmount } from '@/utils/formatters';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -654,15 +655,61 @@ export default function EmployeeEditPage() {
               </div>
             </div>
 
-            <div className="max-h-64 overflow-y-auto border-b px-6 py-4">
-              <ul className="space-y-1 text-sm">
-                {managedFunds.map((fund) => (
-                  <li key={fund.id} className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    <span className="font-medium">{fund.name}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="max-h-80 overflow-y-auto border-b px-6 py-4 space-y-2">
+              {managedFunds.map((fund) => {
+                const accountSuffix = fund.accountNumber
+                  ? fund.accountNumber.slice(-4)
+                  : '—';
+                return (
+                  <div
+                    key={fund.id}
+                    className="rounded-lg border bg-muted/20 p-3"
+                    data-testid={`reassign-fund-item-${fund.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                          <span className="font-semibold truncate">{fund.name}</span>
+                        </div>
+                        {fund.description && (
+                          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                            {fund.description}
+                          </p>
+                        )}
+                      </div>
+                      {fund.fundValue != null && (
+                        <div className="text-right shrink-0">
+                          <div className="text-[11px] text-muted-foreground">Vrednost fonda</div>
+                          <div className="font-mono text-sm font-semibold">
+                            {formatAmount(fund.fundValue)} RSD
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {(fund.fundValue != null || fund.liquidAmount != null || fund.holdings != null || fund.accountNumber) && (
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                        <div>
+                          <div className="text-muted-foreground">Likvidnost</div>
+                          <div className="font-mono">
+                            {fund.liquidAmount != null ? `${formatAmount(fund.liquidAmount)} RSD` : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Hartije</div>
+                          <div className="font-mono">{fund.holdings?.length ?? 0}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Racun</div>
+                          <div className="font-mono truncate" title={fund.accountNumber ?? ''}>
+                            {fund.accountNumber ? `...${accountSuffix}` : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex justify-end gap-2 p-6">

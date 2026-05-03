@@ -34,12 +34,13 @@ type OpenState =
 type Props = {
   onAcceptedOffer?: () => void;
   onUnreadChange?: (count: number) => void;
+  onActiveCountChange?: (count: number) => void;
 };
 
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background';
 
-export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange }: Props) {
+export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange, onActiveCountChange }: Props) {
   // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti nemaju
   // pristup OTC inter-bank pregovaranju. Role mapiranje izostavlja isAgent.
   const { user, isAdmin, isSupervisor } = useAuth();
@@ -116,6 +117,11 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange 
 
     onUnreadChange(unread);
   }, [activeOffers, loadingOffers, user?.id, onUnreadChange]);
+
+  // Tab badge count (Runda LOW polish): broj aktivnih ponuda za parent tab
+  useEffect(() => {
+    onActiveCountChange?.(activeOffers.length);
+  }, [activeOffers.length, onActiveCountChange]);
 
   const openAcceptForm = (offer: OtcInterbankOffer) => {
     const preferred = getPreferredAccount(accounts, offer.listingCurrency);

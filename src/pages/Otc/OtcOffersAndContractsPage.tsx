@@ -61,6 +61,8 @@ export default function OtcOffersAndContractsPage() {
   const [previousEntranceTs, setPreviousEntranceTs] = useState(0);
   const [viewedTabs, setViewedTabs] = useState<Set<Tab>>(() => new Set<Tab>());
   const [remoteUnread, setRemoteUnread] = useState(0);
+  const [remoteOffersCount, setRemoteOffersCount] = useState(0);
+  const [remoteContractsCount, setRemoteContractsCount] = useState(0);
 
   const markTabViewed = useCallback((value: Tab) => {
     setViewedTabs((prev) => {
@@ -242,6 +244,13 @@ export default function OtcOffersAndContractsPage() {
     [offers],
   );
 
+  // Spec UX polish: count badge na "Sklopljeni ugovori (intra-bank)" tab-u —
+  // pokazuje koliko je ACTIVE ugovora (nisu istekli niti EXERCISED/CANCELLED).
+  const activeContractsCount = useMemo(
+    () => contracts.filter((c) => c.status === 'ACTIVE').length,
+    [contracts],
+  );
+
   const unreadOffersCount = useMemo(() => {
     const userId = user?.id;
     if (loadingOffers || !userId) return 0;
@@ -289,16 +298,35 @@ export default function OtcOffersAndContractsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="contracts-local">Sklopljeni ugovori (intra-bank)</TabsTrigger>
+          <TabsTrigger value="contracts-local">
+            Sklopljeni ugovori (intra-bank)
+            {activeContractsCount > 0 && (
+              <Badge variant="secondary" className="ml-2" data-testid="count-contracts-local">
+                {activeContractsCount}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="offers-remote">
             Aktivne ponude (inter-bank)
+            {remoteOffersCount > 0 && (
+              <Badge variant="secondary" className="ml-2" data-testid="count-offers-remote">
+                {remoteOffersCount}
+              </Badge>
+            )}
             {remoteUnread > 0 && !viewedTabs.has('offers-remote') && (
               <Badge variant="warning" className="ml-2" data-testid="unread-offers-remote">
                 {remoteUnread} novih
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="contracts-remote">Sklopljeni ugovori (inter-bank)</TabsTrigger>
+          <TabsTrigger value="contracts-remote">
+            Sklopljeni ugovori (inter-bank)
+            {remoteContractsCount > 0 && (
+              <Badge variant="secondary" className="ml-2" data-testid="count-contracts-remote">
+                {remoteContractsCount}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
       <TabsContent value="offers-local" className="pt-6">
@@ -618,11 +646,12 @@ export default function OtcOffersAndContractsPage() {
             markTabViewed('contracts-remote');
           }}
           onUnreadChange={setRemoteUnread}
+          onActiveCountChange={setRemoteOffersCount}
         />
       </TabsContent>
 
       <TabsContent value="contracts-remote" className="pt-6">
-        <OtcInterBankContractsTab />
+        <OtcInterBankContractsTab onActiveCountChange={setRemoteContractsCount} />
       </TabsContent>
       </Tabs>
 

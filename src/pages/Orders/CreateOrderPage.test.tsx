@@ -309,6 +309,38 @@ describe('CreateOrderPage', () => {
     expect(aonCheckbox).toBeChecked();
   });
 
+  it('renders AON tooltip trigger with explanation about Sve ili nista', async () => {
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('aon-tooltip-trigger')).toBeInTheDocument();
+    });
+
+    const tooltipContent = screen.getByTestId('aon-tooltip-content');
+    expect(tooltipContent).toBeInTheDocument();
+    expect(tooltipContent.textContent).toMatch(/Sve ili nista/i);
+    expect(tooltipContent.textContent).toMatch(/u celini|delove/i);
+    expect(tooltipContent.textContent).toMatch(/MSFT/i); // primer
+  });
+
+  it('AON status text changes based on checkbox state', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('aon-status-text')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('aon-status-text').textContent).toMatch(/Dozvoljeno parcijalno izvrsenje/i);
+
+    const aonCheckbox = screen.getByRole('checkbox', { name: /All or None/i });
+    await user.click(aonCheckbox);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('aon-status-text').textContent).toMatch(/Sve ili nista/i);
+    });
+  });
+
   // ---------- Margin order flow ----------
 
   it('renders Margin checkbox and it is unchecked by default', async () => {

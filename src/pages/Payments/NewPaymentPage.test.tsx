@@ -495,4 +495,272 @@ describe('NewPaymentPage', () => {
     expect(modelInput.value).toBe('');
     expect(callNumberInput.value).toBe('');
   });
+
+  // ---------- Inter-bank warning banner (Celina 5 (Nova)) ----------
+
+  it('does not show inter-bank banner for empty recipient account', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Racun primaoca/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('interbank-warning-banner')).not.toBeInTheDocument();
+  });
+
+  it('does not show inter-bank banner for our-bank prefix (222)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Racun primaoca/i)).toBeInTheDocument();
+    });
+
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
+    await user.type(toAccountInput, '222000000000000099');
+
+    expect(screen.queryByTestId('interbank-warning-banner')).not.toBeInTheDocument();
+  });
+
+  it('shows inter-bank banner when recipient account starts with foreign prefix (444)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Racun primaoca/i)).toBeInTheDocument();
+    });
+
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
+    await user.type(toAccountInput, '444000000000000099');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-warning-banner')).toBeInTheDocument();
+    });
+
+    // Banner sadrzi prefix iz unosa + 2PC tekst
+    expect(screen.getByText(/Medjubankarsko placanje/i)).toBeInTheDocument();
+    expect(screen.getByText(/2-Phase Commit/i)).toBeInTheDocument();
+    expect(screen.getByText('444')).toBeInTheDocument();
+  });
+
+  it('hides inter-bank banner when user clears recipient account back to empty', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Racun primaoca/i)).toBeInTheDocument();
+    });
+
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
+    await user.type(toAccountInput, '444000000000000099');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-warning-banner')).toBeInTheDocument();
+    });
+
+    await user.clear(toAccountInput);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('interbank-warning-banner')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows inter-bank banner for prefix 333 (Banka 3)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Racun primaoca/i)).toBeInTheDocument();
+    });
+
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
+    await user.type(toAccountInput, '333000000000000099');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-warning-banner')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('333')).toBeInTheDocument();
+  });
+
+  // ---------- F) Inter-bank stepper modal (visual progress) ----------
+
+  it('renders 4-step stepper when inter-bank tracking is active', async () => {
+    const user = userEvent.setup();
+
+    // BE prvo vraca PREPARED (faza 2 active), pa COMMITTED (faza 4 done)
+    mockInterbankPaymentService.getStatus
+      .mockResolvedValueOnce({
+        id: 11,
+        transactionId: 'tx-11',
+        status: 'PREPARED',
+        senderAccountNumber: '265000000000000001',
+        receiverAccountNumber: '444000000000000099',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-01-01T00:00:00',
+      })
+      .mockResolvedValue({
+        id: 11,
+        transactionId: 'tx-11',
+        status: 'COMMITTED',
+        senderAccountNumber: '265000000000000001',
+        receiverAccountNumber: '444000000000000099',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-01-01T00:00:00',
+      });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    // Fill form sa inter-bank brojem racuna
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
+    await user.type(toAccountInput, '444000000000000099');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Test');
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Test inter-bank');
+
+    // Submit i potvrdi OTP
+    await user.click(screen.getByRole('button', { name: /Nastavi na verifikaciju/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    // Stepper se pojavljuje
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-stepper')).toBeInTheDocument();
+    });
+
+    // 4 koraka su prisutna
+    expect(screen.getByTestId('interbank-step-INITIATED')).toBeInTheDocument();
+    expect(screen.getByTestId('interbank-step-PREPARED')).toBeInTheDocument();
+    expect(screen.getByTestId('interbank-step-COMMITTING')).toBeInTheDocument();
+    expect(screen.getByTestId('interbank-step-COMMITTED')).toBeInTheDocument();
+  });
+
+  it('shows retry button in STUCK warning and refreshes status when clicked', async () => {
+    const user = userEvent.setup();
+
+    mockInterbankPaymentService.initiatePayment.mockResolvedValue({
+      id: 13,
+      transactionId: 'tx-13',
+      status: 'STUCK',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '444000000000000099',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+      failureReason: 'Banka primaoca nije odgovorila',
+    });
+    // Prvi initiate vraca STUCK; drugi getStatus (nakon retry click-a) vraca COMMITTED
+    mockInterbankPaymentService.getStatus.mockResolvedValue({
+      id: 13,
+      transactionId: 'tx-13',
+      status: 'COMMITTED',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '444000000000000099',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText(/Racun primaoca/i), '444000000000000099');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Test');
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Test');
+
+    await user.click(screen.getByRole('button', { name: /Nastavi na verifikaciju/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-stuck-retry-btn')).toBeInTheDocument();
+    });
+
+    // Klik na retry
+    await user.click(screen.getByTestId('interbank-stuck-retry-btn'));
+
+    // Status modal se osvezava na COMMITTED — STUCK warning nestaje
+    await waitFor(() => {
+      expect(screen.queryByTestId('interbank-stuck-warning')).not.toBeInTheDocument();
+    });
+
+    expect(mockInterbankPaymentService.getStatus).toHaveBeenCalledWith('tx-13');
+  });
+
+  it('shows STUCK warning alert when transaction is stuck', async () => {
+    const user = userEvent.setup();
+
+    // Initiate vec vraca STUCK (npr. po 2 minuta polling-a iz prethodne sesije)
+    mockInterbankPaymentService.initiatePayment.mockResolvedValue({
+      id: 12,
+      transactionId: 'tx-12',
+      status: 'STUCK',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '444000000000000099',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+      failureReason: 'Banka primaoca nije odgovorila u 2 minuta',
+    });
+    mockInterbankPaymentService.getStatus.mockResolvedValue({
+      id: 12,
+      transactionId: 'tx-12',
+      status: 'STUCK',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '444000000000000099',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+      failureReason: 'Banka primaoca nije odgovorila u 2 minuta',
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText(/Racun primaoca/i), '444000000000000099');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Test');
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Test');
+
+    await user.click(screen.getByRole('button', { name: /Nastavi na verifikaciju/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-stuck-warning')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/zaglavljena/i)).toBeInTheDocument();
+  });
 });

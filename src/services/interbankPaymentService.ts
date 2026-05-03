@@ -29,6 +29,12 @@ type PaymentResponseDto = {
   recipientName?: string;
   description?: string;
   status: PaymentStatus;
+  // BE moze (opciono) da posalje detaljan razlog odbacanja/zaglavljivanja kroz
+  // jedno od ovih polja. FE ih probacuje kroz `pickFailureReason()` u prioritetu.
+  failureReason?: string;
+  rejectionReason?: string;
+  errorMessage?: string;
+  errorCode?: string;
   createdAt: string;
 };
 
@@ -42,6 +48,10 @@ type PaymentListItemDto = {
   description?: string;
   recipientName?: string;
   status: PaymentStatus;
+  failureReason?: string;
+  rejectionReason?: string;
+  errorMessage?: string;
+  errorCode?: string;
   createdAt: string;
 };
 
@@ -49,8 +59,52 @@ type PageDto<T> = {
   content: T[];
 };
 
-function mapPaymentStatus(status: PaymentStatus): { status: InterbankPayment['status']; failureReason?: string } {
-  switch (status) {
+/**
+ * Spec Celina 5 (Nova): "ABORTED prikazi razlog (npr. 'Racun primaoca neaktivan')".
+ * BE error code → covecna srpska poruka. Ako BE posalje konkretan failureReason
+ * tekst (kroz polje `failureReason` / `rejectionReason` / `errorMessage`), FE ga
+ * propusta direktno. Ako salje samo `errorCode` (npr. "RECIPIENT_INACTIVE"),
+ * mapiramo na lokalizovanu poruku. Ako nema nista, vraca generican fallback.
+ */
+const ERROR_CODE_MESSAGES: Record<string, string> = {
+  RECIPIENT_INACTIVE: 'Racun primaoca je neaktivan.',
+  RECIPIENT_NOT_FOUND: 'Racun primaoca ne postoji u bazi banke primaoca.',
+  RECIPIENT_BLOCKED: 'Racun primaoca je blokiran.',
+  INSUFFICIENT_FUNDS: 'Nedovoljno sredstava na racunu posiljaoca.',
+  CURRENCY_MISMATCH: 'Konverzija valute nije moguca u ovom trenutku.',
+  AMOUNT_LIMIT_EXCEEDED: 'Iznos prelazi dozvoljeni limit (dnevni ili mesecni).',
+  PARTNER_BANK_UNREACHABLE: 'Banka primaoca nije dostupna. Pokusajte kasnije.',
+  PARTNER_BANK_TIMEOUT: 'Banka primaoca nije odgovorila u predvidjenom roku.',
+  PROTOCOL_VERSION_MISMATCH: 'Banke koriste razlicite verzije protokola za medjubankarsku komunikaciju.',
+  AUTHENTICATION_FAILED: 'Autentifikacija medjubankarske poruke nije uspela.',
+  INVALID_AMOUNT: 'Iznos transakcije nije validan.',
+  INVALID_CURRENCY: 'Valuta transakcije nije podrzana.',
+  ACCOUNT_CLOSED: 'Racun je zatvoren.',
+  COMPLIANCE_REJECTED: 'Transakcija je odbacena zbog regulatornih razloga.',
+  RATE_LIMIT_EXCEEDED: 'Premnog zahteva u kratkom periodu. Sacekajte malo i pokusajte ponovo.',
+  INTERNAL_ERROR: 'Greska na strani banke primaoca.',
+};
+
+export function pickFailureReason(
+  raw: { failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string } | null | undefined,
+  fallback: string,
+): string {
+  if (!raw) return fallback;
+  // 1. Konkretna BE poruka (najprioritetnija — BE zna detalje)
+  const direct = raw.failureReason ?? raw.rejectionReason ?? raw.errorMessage;
+  if (direct && direct.trim().length > 0) {
+    return direct;
+  }
+  // 2. Mapiran error code
+  if (raw.errorCode && ERROR_CODE_MESSAGES[raw.errorCode]) {
+    return ERROR_CODE_MESSAGES[raw.errorCode];
+  }
+  // 3. Fallback
+  return fallback;
+}
+
+function mapPaymentStatus(payment: { status: PaymentStatus; failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string }): { status: InterbankPayment['status']; failureReason?: string } {
+  switch (payment.status) {
     case 'PENDING':
       return { status: 'INITIATED' };
     case 'PROCESSING':
@@ -58,16 +112,25 @@ function mapPaymentStatus(status: PaymentStatus): { status: InterbankPayment['st
     case 'COMPLETED':
       return { status: 'COMMITTED' };
     case 'REJECTED':
-      return { status: 'ABORTED', failureReason: 'Payment rejected.' };
+      return {
+        status: 'ABORTED',
+        failureReason: pickFailureReason(payment, 'Banka primaoca je odbacila transakciju.'),
+      };
     case 'CANCELLED':
-      return { status: 'ABORTED', failureReason: 'Payment cancelled.' };
+      return {
+        status: 'ABORTED',
+        failureReason: pickFailureReason(payment, 'Transakcija je otkazana.'),
+      };
     default:
-      return { status: 'STUCK', failureReason: `Unknown payment status: ${status}` };
+      return {
+        status: 'STUCK',
+        failureReason: pickFailureReason(payment, `Nepoznat status transakcije: ${payment.status}`),
+      };
   }
 }
 
 function mapPaymentToInterbank(payment: PaymentResponseDto): InterbankPayment {
-  const mapped = mapPaymentStatus(payment.status);
+  const mapped = mapPaymentStatus(payment);
   return {
     id: payment.id,
     transactionId: String(payment.id),
@@ -89,7 +152,7 @@ function mapPaymentToInterbank(payment: PaymentResponseDto): InterbankPayment {
 }
 
 function mapPaymentListItemToInterbank(item: PaymentListItemDto): InterbankPayment {
-  const mapped = mapPaymentStatus(item.status);
+  const mapped = mapPaymentStatus(item);
   return {
     id: item.id,
     transactionId: String(item.id),

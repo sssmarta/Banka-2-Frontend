@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calculator, Search, Wallet } from 'lucide-react';
+import { Calculator, ChevronRight, Search, Wallet } from 'lucide-react';
 import type { ExchangeRate } from '@/types/celina2';
 import type { TaxRecord } from '@/types/celina3';
 import taxService from '@/services/taxService';
@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import TaxDetailDialog from './TaxDetailDialog';
 
 type UserTypeFilter = 'ALL' | 'CLIENT' | 'EMPLOYEE';
 
@@ -51,6 +52,7 @@ export default function TaxPortalPage() {
   const [search, setSearch] = useState('');
   const [userType, setUserType] = useState<UserTypeFilter>('ALL');
   const [runningCalculation, setRunningCalculation] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<TaxRecord | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -220,9 +222,9 @@ export default function TaxPortalPage() {
       )}
 
       {/* Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden max-h-[70vh] overflow-auto">
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>Korisnik</TableHead>
               <TableHead>Tip</TableHead>
@@ -231,13 +233,14 @@ export default function TaxPortalPage() {
               <TableHead className="text-right">Porez placen</TableHead>
               <TableHead className="text-right">Valuta</TableHead>
               <TableHead className="text-right">Dugovanje (RSD)</TableHead>
+              <TableHead className="w-10" aria-label="Detalji" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               Array.from({ length: 6 }).map((_, index) => (
                 <TableRow key={`tax-skeleton-${index}`}>
-                  {Array.from({ length: 7 }).map((__, colIndex) => (
+                  {Array.from({ length: 8 }).map((__, colIndex) => (
                     <TableCell key={`tax-skeleton-col-${colIndex}`}>
                       <div className="h-4 w-24 animate-pulse rounded bg-muted" />
                     </TableCell>
@@ -246,7 +249,7 @@ export default function TaxPortalPage() {
               ))
             ) : mappedRecords.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-auto p-0">
+                <TableCell colSpan={8} className="h-auto p-0">
                   <div className="flex flex-col items-center justify-center py-16">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                       <Wallet className="h-8 w-8 text-muted-foreground" />
@@ -265,7 +268,12 @@ export default function TaxPortalPage() {
                 const paid = parseNumber(record.taxPaid);
 
                 return (
-                  <TableRow key={`${record.userType}-${record.userId}`} className="hover:bg-muted/50 transition-colors">
+                  <TableRow
+                    key={`${record.userType}-${record.userId}`}
+                    className="hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => setDetailRecord(record)}
+                    data-testid={`tax-row-${record.userType}-${record.userId}`}
+                  >
                     <TableCell className="font-medium">{record.userName}</TableCell>
                     <TableCell>
                       <Badge variant={record.userType === 'CLIENT' ? 'info' : 'warning'}>
@@ -287,6 +295,9 @@ export default function TaxPortalPage() {
                     <TableCell className={`text-right font-mono tabular-nums font-semibold ${record.debtRsd > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {formatAmount(record.debtRsd)} RSD
                     </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      <ChevronRight className="ml-auto h-4 w-4" aria-hidden="true" />
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -294,6 +305,14 @@ export default function TaxPortalPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <TaxDetailDialog
+        open={detailRecord !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailRecord(null);
+        }}
+        record={detailRecord}
+      />
     </div>
   );
 }

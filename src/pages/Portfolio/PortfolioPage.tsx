@@ -354,6 +354,17 @@ export default function PortfolioPage() {
       return;
     }
 
+    // Spec Celina 4 (Nova): publicQuantity ne sme biti veca od ukupne
+    // kolicine akcija. BE inace odbija sa 400, ali UI-side validacija
+    // daje brzi feedback bez network round-trip-a.
+    const totalQuantity = Number(item.quantity) || 0;
+    if (parsed > totalQuantity) {
+      toast.error(
+        `Javna kolicina (${parsed}) ne moze biti veca od ukupne kolicine (${totalQuantity}).`,
+      );
+      return;
+    }
+
     setSavingPublicId(item.id);
 
     try {
@@ -556,8 +567,9 @@ export default function PortfolioPage() {
                   </p>
                 </div>
               ) : (
+                <div className="max-h-[60vh] overflow-auto">
                 <Table>
-                  <TableHeader>
+                  <TableHeader sticky>
                     <TableRow>
                       <TableHead>Tip</TableHead>
                       <TableHead>Ticker</TableHead>
@@ -654,17 +666,23 @@ export default function PortfolioPage() {
                                   <Input
                                     type="number"
                                     min="0"
+                                    max={Number(item.quantity) || 0}
                                     value={publicQuantities[item.id] ?? '0'}
                                     onChange={(e) => handlePublicQuantityChange(item.id, e)}
                                     className="w-24"
-                                    title="Javne akcije su vidljive na OTC portalu za trgovinu"
+                                    title={`Javne akcije su vidljive na OTC portalu (max ${item.quantity})`}
+                                    data-testid={`public-quantity-input-${item.id}`}
                                   />
                                   <Button
                                     size="sm"
                                     variant="secondary"
-                                    disabled={savingPublicId === item.id}
+                                    disabled={
+                                      savingPublicId === item.id ||
+                                      Number(publicQuantities[item.id] ?? '0') > (Number(item.quantity) || 0)
+                                    }
                                     onClick={() => handleSavePublicQuantity(item)}
-                                    title="Javne akcije su vidljive na OTC portalu za trgovinu"
+                                    title={`Javne akcije su vidljive na OTC portalu (max ${item.quantity})`}
+                                    data-testid={`public-quantity-save-${item.id}`}
                                   >
                                     {savingPublicId === item.id ? 'Čuvanje...' : 'Učini javnim'}
                                   </Button>
@@ -688,6 +706,7 @@ export default function PortfolioPage() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -178,7 +178,7 @@ function getPriceSourceLabel(orderType: OrderType, direction: OrderDirection): s
   return 'Limit vrednost';
 }
 
-import { getOrderCommission as getCommission } from '@/utils/orderCalculations';
+import { getOrderCommission as getCommission, getOrderCommissionBreakdown } from '@/utils/orderCalculations';
 
 /**
  * FX marza koju banka naplacuje klijentima kad trguju hartijom u valuti
@@ -638,6 +638,7 @@ export default function CreateOrderPage() {
 
   const approximatePrice = contractSize * pricePerUnit * safeQuantity;
   const commission = getCommission(orderType, approximatePrice, isEmployeeRole);
+  const commissionBreakdown = getOrderCommissionBreakdown(orderType, approximatePrice, isEmployeeRole);
   const pricingCurrency = getPricingCurrency(selectedListing);
 
   // Menjacnica komisija — primenjuje se samo za klijente kad je valuta racuna
@@ -712,6 +713,10 @@ export default function CreateOrderPage() {
   const confirmationCommission = pendingOrder
     ? getCommission(pendingOrder.orderType, confirmationApproximatePrice, isEmployeeRole)
     : 0;
+
+  const confirmationCommissionBreakdown = pendingOrder
+    ? getOrderCommissionBreakdown(pendingOrder.orderType, confirmationApproximatePrice, isEmployeeRole)
+    : null;
 
   const confirmationCurrency = getPricingCurrency(confirmationListing);
   const confirmationNeedsFx =
@@ -1092,12 +1097,37 @@ export default function CreateOrderPage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex items-start gap-3 rounded-md border border-input p-4 text-sm">
                       <input type="checkbox" className="mt-1" {...register('allOrNone')} />
-                      <div>
-                        <p className="font-medium">All or None</p>
-                        <p className="text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium">All or None</p>
+                          <span
+                            className="group/aon relative inline-flex"
+                            data-testid="aon-tooltip-trigger"
+                          >
+                            <Info
+                              className="h-3.5 w-3.5 cursor-help text-muted-foreground hover:text-indigo-500 transition-colors"
+                              aria-label="Sta je All or None"
+                            />
+                            <span
+                              role="tooltip"
+                              data-testid="aon-tooltip-content"
+                              className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 w-72 rounded-lg border bg-popover p-3 text-[11px] text-popover-foreground shadow-lg opacity-0 group-hover/aon:opacity-100 group-focus-within/aon:opacity-100 transition-opacity"
+                            >
+                              <strong className="block mb-1 text-xs">All or None (sve ili nista)</strong>
+                              Order se izvrsava ISKLJUCIVO u celini — ako trziste ne moze odjednom da popuni
+                              celu kolicinu, nista se ne kupuje/prodaje. Bez AON, sistem ce prikupljati delove
+                              od razlicitih trgovaca dok se ne ispuni zadata kolicina.
+                              <span className="mt-1.5 block text-muted-foreground">
+                                Primer: za 5 MSFT akcija, AON ce sacekati prodavca koji nudi 5+ akcija odjednom.
+                                Bez AON, sistem moze kupiti 1+2+2 od tri razlicita prodavca.
+                              </span>
+                            </span>
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground" data-testid="aon-status-text">
                           {allOrNone
-                            ? 'Nalog se izvršava samo ako može u potpunosti.'
-                            : 'Dozvoljeno je parcijalno izvršenje.'}
+                            ? 'Sve ili nista — order se nece parcijalno izvrsiti.'
+                            : 'Dozvoljeno parcijalno izvrsenje (default).'}
                         </p>
                       </div>
                     </label>
@@ -1114,8 +1144,31 @@ export default function CreateOrderPage() {
                         disabled={!activeMargin}
                         {...register('margin')}
                       />
-                      <div>
-                        <p className="font-medium">Margin order</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium">Margin order</p>
+                          <span
+                            className="group/margin relative inline-flex"
+                            data-testid="margin-tooltip-trigger"
+                          >
+                            <Info
+                              className="h-3.5 w-3.5 cursor-help text-muted-foreground hover:text-indigo-500 transition-colors"
+                              aria-label="Sta je Margin order"
+                            />
+                            <span
+                              role="tooltip"
+                              data-testid="margin-tooltip-content"
+                              className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 w-72 rounded-lg border bg-popover p-3 text-[11px] text-popover-foreground shadow-lg opacity-0 group-hover/margin:opacity-100 group-focus-within/margin:opacity-100 transition-opacity"
+                            >
+                              <strong className="block mb-1 text-xs">Margin order</strong>
+                              Order koristi pozajmljena sredstva (kredit) za trgovinu. Initial Margin Cost =
+                              Maintenance Margin × 1.1. Klijent mora imati odobreni kredit ili sredstva veca od IMC-a.
+                              <span className="mt-1.5 block text-muted-foreground">
+                                Veca kupovna moc, ali povecan rizik gubitka.
+                              </span>
+                            </span>
+                          </span>
+                        </div>
                         <p className="text-muted-foreground">
                           {!activeMargin
                             ? 'Nemate aktivan margin račun.'
@@ -1202,13 +1255,35 @@ export default function CreateOrderPage() {
                             </div>
                           </>
                         )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Provizija</span>
-                        <span className="font-mono font-medium">
-                          {isEmployeeUi
-                            ? '0 (zaposleni)'
-                            : `${formatAmount(commission)} ${pricingCurrency}`}
-                        </span>
+                      <div className="flex flex-col gap-1" data-testid="commission-breakdown">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Provizija
+                            {commissionBreakdown && (
+                              <span className="ml-2 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+                                ({commissionBreakdown.formulaLabel})
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-mono font-medium">
+                            {isEmployeeUi
+                              ? '0 (zaposleni)'
+                              : `${formatAmount(commission)} ${pricingCurrency}`}
+                          </span>
+                        </div>
+                        {commissionBreakdown && !isEmployeeUi && (
+                          <p className="text-[11px] text-muted-foreground italic" data-testid="commission-formula-detail">
+                            {commissionBreakdown.cappedByLimit ? (
+                              <>
+                                {(commissionBreakdown.rate * 100).toFixed(0)}% od cene ({formatAmount(commissionBreakdown.rawAmount)} {pricingCurrency}) prelazi gornji prag, primenjeno: ${commissionBreakdown.cap}
+                              </>
+                            ) : (
+                              <>
+                                {(commissionBreakdown.rate * 100).toFixed(0)}% od cene = {formatAmount(commissionBreakdown.amount)} {pricingCurrency} (ispod praga ${commissionBreakdown.cap})
+                              </>
+                            )}
+                          </p>
+                        )}
                       </div>
                       {needsFxConversion && fxCommissionInAccount > 0 && (
                         <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
@@ -1597,13 +1672,29 @@ export default function CreateOrderPage() {
                       </div>
                     </>
                   )}
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-muted-foreground">Provizija</span>
-                  <span className="font-medium">
-                    {isEmployeeUi
-                      ? '0 (zaposleni)'
-                      : `${formatAmount(confirmationCommission)} ${confirmationCurrency}`}
-                  </span>
+                <div className="flex flex-col gap-1 py-1" data-testid="confirm-commission-breakdown">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Provizija
+                      {confirmationCommissionBreakdown && (
+                        <span className="ml-2 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+                          ({confirmationCommissionBreakdown.formulaLabel})
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium">
+                      {isEmployeeUi
+                        ? '0 (zaposleni)'
+                        : `${formatAmount(confirmationCommission)} ${confirmationCurrency}`}
+                    </span>
+                  </div>
+                  {confirmationCommissionBreakdown && !isEmployeeUi && (
+                    <p className="text-[11px] text-muted-foreground italic">
+                      {confirmationCommissionBreakdown.cappedByLimit
+                        ? `${(confirmationCommissionBreakdown.rate * 100).toFixed(0)}% od cene prelazi gornji prag, primenjeno: $${confirmationCommissionBreakdown.cap}`
+                        : `${(confirmationCommissionBreakdown.rate * 100).toFixed(0)}% od cene (ispod praga $${confirmationCommissionBreakdown.cap})`}
+                    </p>
+                  )}
                 </div>
                 {confirmationNeedsFx && confirmationFxCommission > 0 && (
                   <div className="flex items-center justify-between py-1 text-amber-600 dark:text-amber-400">
@@ -1633,6 +1724,22 @@ export default function CreateOrderPage() {
                   </div>
                 )}
               </div>
+
+              {/* After-hours upozorenje (Celina 3, spec linija 404) — kad je berza
+                  zatvorena ili u after-hours rezimu, fill-ovi kasne dodatnih 30 min
+                  po delu. Ovo upozorenje je u potvrdnom dijalogu za jasan UX moment
+                  pre submita. */}
+              {!exchangeApiLoading && exchangeApiOpen && !exchangeApiOpen.isOpen && (
+                <Alert variant="warning" data-testid="confirm-afterhours-warning">
+                  <TriangleAlert className="h-4 w-4" />
+                  <AlertTitle>Sporije izvrsavanje (after-hours)</AlertTitle>
+                  <AlertDescription>
+                    Berza {exchangeApiOpen.name} je trenutno zatvorena. Za svaki deo ordera (fill)
+                    bice potreban dodatni period od ~30 minuta po spec-u. Ako vam je hitno, sacekajte
+                    da se berza otvori pa kreirajte order.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex justify-end gap-2">
                 <Dialog.Close asChild>

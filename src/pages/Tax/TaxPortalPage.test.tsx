@@ -40,11 +40,13 @@ const mockTaxRecords: TaxRecord[] = [
 
 const mockGetTaxRecords = vi.fn().mockResolvedValue(mockTaxRecords);
 const mockTriggerCalculation = vi.fn().mockResolvedValue(undefined);
+const mockGetTaxBreakdown = vi.fn();
 
 vi.mock('../../services/taxService', () => ({
   default: {
     getTaxRecords: (...args: unknown[]) => mockGetTaxRecords(...args),
     triggerCalculation: (...args: unknown[]) => mockTriggerCalculation(...args),
+    getTaxBreakdown: (...args: unknown[]) => mockGetTaxBreakdown(...args),
   },
 }));
 
@@ -254,6 +256,94 @@ describe('TaxPortalPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Osvezi')).toBeInTheDocument();
+    });
+  });
+
+  // ---------- Tax detail view (Celina 3 spec ~525) ----------
+
+  it('opens detail dialog when clicking a tax row', async () => {
+    const user = userEvent.setup();
+    mockGetTaxBreakdown.mockResolvedValue({
+      userId: 100,
+      userType: 'CLIENT',
+      userName: 'Marko Petrovic',
+      year: 2026,
+      month: 5,
+      totalProfit: 50000,
+      totalTax: 7500,
+      items: [
+        {
+          orderId: 11,
+          listingTicker: 'AAPL',
+          listingType: 'STOCK',
+          source: 'STOCK_ORDER',
+          quantity: 10,
+          buyPrice: 150,
+          sellPrice: 200,
+          profit: 500,
+          taxAmount: 75,
+          currency: 'USD',
+          executedAt: '2026-04-15T10:00:00Z',
+        },
+      ],
+    });
+
+    renderWithProviders(<TaxPortalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Marko Petrovic')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('tax-row-CLIENT-100'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Detalji poreza · Marko Petrovic/i)).toBeInTheDocument();
+    });
+
+    // Verifikuj da je service pozvan sa pravim argumentima
+    expect(mockGetTaxBreakdown).toHaveBeenCalledWith(100, 'CLIENT');
+
+    // Item appears in table (await loading complete)
+    await waitFor(() => {
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+    });
+  });
+
+  it('shows graceful unavailable placeholder when BE returns 404', async () => {
+    const user = userEvent.setup();
+    mockGetTaxBreakdown.mockRejectedValue({
+      response: { status: 404 },
+    });
+
+    renderWithProviders(<TaxPortalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Marko Petrovic')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('tax-row-CLIENT-100'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tax-detail-unavailable')).toBeInTheDocument();
+    });
+  });
+
+  it('shows error alert when BE returns 500', async () => {
+    const user = userEvent.setup();
+    mockGetTaxBreakdown.mockRejectedValue({
+      response: { status: 500 },
+    });
+
+    renderWithProviders(<TaxPortalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Marko Petrovic')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('tax-row-CLIENT-100'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tax-detail-error')).toBeInTheDocument();
     });
   });
 });

@@ -20,6 +20,7 @@ vi.mock('@/services/profitBankService', () => ({
 vi.mock('@/services/investmentFundService', () => ({
   default: {
     list: vi.fn(),
+    get: vi.fn(),
     invest: vi.fn(),
     withdraw: vi.fn(),
   },
@@ -133,5 +134,117 @@ describe('ProfitBankPage', () => {
     await user.click(screen.getByRole('tab', { name: /Pozicije u fondovima/i }));
 
     expect(await screen.findByText(/Banka trenutno nema pozicije u fondovima/i)).toBeInTheDocument();
+  });
+
+  // ---------- Per-fund holdings breakdown (Spec Celina 4 (Nova) §4585-4628) ----------
+
+  it('expands fund detail breakdown with holdings on click', async () => {
+    useAuthMock.mockReturnValue({ isSupervisor: true, isAdmin: false });
+    mockedInvestmentFundService.get.mockResolvedValue({
+      id: 5,
+      name: 'Alpha Fund',
+      description: 'Tech sector fund',
+      managerName: 'Marko Petrovic',
+      managerEmployeeId: 1,
+      fundValue: 800000,
+      liquidAmount: 200000,
+      profit: 50000,
+      minimumContribution: 1000,
+      accountNumber: '222001100000000005',
+      holdings: [
+        {
+          listingId: 101,
+          ticker: 'AAPL',
+          name: 'Apple Inc.',
+          quantity: 50,
+          currentPrice: 175.50,
+          change: 2.30,
+          volume: 1000,
+          initialMarginCost: 9650,
+          acquisitionDate: '2026-03-15',
+        },
+        {
+          listingId: 102,
+          ticker: 'MSFT',
+          name: 'Microsoft Corp.',
+          quantity: 30,
+          currentPrice: 410.20,
+          change: -1.80,
+          volume: 800,
+          initialMarginCost: 13540,
+          acquisitionDate: '2026-04-01',
+        },
+      ],
+      performance: [],
+      inceptionDate: '2026-01-01',
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText('Profit Banke');
+    await user.click(screen.getByRole('tab', { name: /Pozicije u fondovima/i }));
+    await screen.findByText('Alpha Fund');
+
+    // Initial state: breakdown nije renderovan
+    expect(screen.queryByTestId('bank-fund-breakdown-5')).not.toBeInTheDocument();
+
+    // Klik na expand dugme
+    await user.click(screen.getByTestId('bank-fund-expand-5'));
+
+    // Breakdown renderovan
+    await waitFor(() => {
+      expect(screen.getByTestId('bank-fund-breakdown-5')).toBeInTheDocument();
+    });
+
+    // Service pozvan
+    expect(mockedInvestmentFundService.get).toHaveBeenCalledWith(5);
+
+    // Holdings se prikazuju
+    await waitFor(() => {
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+    });
+    expect(screen.getByText('MSFT')).toBeInTheDocument();
+    expect(screen.getByText('Apple Inc.')).toBeInTheDocument();
+
+    // Mini KPI kartice
+    expect(screen.getByText(/Menadzer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Likvidnost/i)).toBeInTheDocument();
+  });
+
+  it('collapses breakdown when clicking expand button again', async () => {
+    useAuthMock.mockReturnValue({ isSupervisor: true, isAdmin: false });
+    mockedInvestmentFundService.get.mockResolvedValue({
+      id: 5,
+      name: 'Alpha Fund',
+      description: '',
+      managerName: 'Marko',
+      managerEmployeeId: 1,
+      fundValue: 800000,
+      liquidAmount: 200000,
+      profit: 50000,
+      minimumContribution: 1000,
+      accountNumber: '222001100000000005',
+      holdings: [],
+      performance: [],
+      inceptionDate: '2026-01-01',
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText('Profit Banke');
+    await user.click(screen.getByRole('tab', { name: /Pozicije u fondovima/i }));
+    await screen.findByText('Alpha Fund');
+
+    await user.click(screen.getByTestId('bank-fund-expand-5'));
+    await waitFor(() => {
+      expect(screen.getByTestId('bank-fund-breakdown-5')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('bank-fund-expand-5'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('bank-fund-breakdown-5')).not.toBeInTheDocument();
+    });
   });
 });

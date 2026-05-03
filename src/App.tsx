@@ -128,10 +128,16 @@ export default function App() {
             <Route path="/employee/clients/:id" element={<ClientsPortalPage />} />
             <Route path="/employee/loan-requests" element={<LoanRequestsPage />} />
             <Route path="/employee/loans" element={<AllLoansPage />} />
+            <Route path="/employee/exchanges" element={<ExchangesPage />} />
+          </Route>
+
+          {/* Supervisor-only rute (Celina 3 + Celina 4 (Nova) Profit Banke) */}
+          <Route element={<ProtectedRoute supervisorOnly />}>
             <Route path="/employee/orders" element={<OrdersListPage />} />
             <Route path="/employee/actuaries" element={<ActuaryManagementPage />} />
             <Route path="/employee/tax" element={<TaxPortalPage />} />
-            <Route path="/employee/exchanges" element={<ExchangesPage />} />
+            <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
+            <Route path="/funds/create" element={<CreateFundPage />} />
           </Route>
 
           {/* Berza */}
@@ -141,15 +147,15 @@ export default function App() {
           <Route path="/orders/my" element={<MyOrdersPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
 
-          {/* OTC trgovina (Celina 4 intra-bank) */}
-          <Route path="/otc" element={<OtcTrgovinaPage />} />
-          <Route path="/otc/offers" element={<OtcOffersAndContractsPage />} />
+          {/* OTC trgovina (Celina 4 intra+inter-bank) — agenti nemaju pristup po §137-141 */}
+          <Route element={<ProtectedRoute noAgentOnly />}>
+            <Route path="/otc" element={<OtcTrgovinaPage />} />
+            <Route path="/otc/offers" element={<OtcOffersAndContractsPage />} />
+          </Route>
 
-          {/* Investicioni fondovi (Celina 4) */}
+          {/* Investicioni fondovi (Celina 4) — discovery i details su za sve */}
           <Route path="/funds" element={<FundsDiscoveryPage />} />
-          <Route path="/funds/create" element={<CreateFundPage />} />
           <Route path="/funds/:id" element={<FundDetailsPage />} />
-          <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
         </Route>
       </Route>
 

@@ -1813,3 +1813,169 @@ describe('Mock C4: Sidebar C4 Links', () => {
   Cilj: do KT3, ceo mock suite da bude zelen.
 ================================================================================
 */
+
+// ============================================================
+//  ROUTE GUARDS — Defense-in-depth (preuzeto iz polish migracije 03.05)
+// ============================================================
+
+describe('Route guards: supervisorOnly redirects agent to /403', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/employees**', { statusCode: 200, body: { content: [], total: 0 } });
+  });
+
+  it('agent direktnim URL-om na /employee/orders dobija 403 (supervisorOnly guard)', () => {
+    cy.visit('/employee/orders', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /employee/actuaries dobija 403', () => {
+    cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /employee/tax dobija 403', () => {
+    cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /employee/profit-bank dobija 403', () => {
+    cy.visit('/employee/profit-bank', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /funds/create dobija 403 (samo supervizori prave fondove)', () => {
+    cy.visit('/funds/create', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('supervizor moze da pristupi /employee/orders', () => {
+    cy.intercept('GET', '**/api/orders**', { statusCode: 200, body: { content: [], totalPages: 0, totalElements: 0, number: 0, size: 20 } });
+    cy.visit('/employee/orders', { onBeforeLoad: (win) => setupSupervisorSession(win) });
+    cy.url().should('include', '/employee/orders');
+    cy.url().should('not.include', '/403');
+  });
+
+  it('admin moze da pristupi /employee/orders (admin je supervizor)', () => {
+    cy.intercept('GET', '**/api/orders**', { statusCode: 200, body: { content: [], totalPages: 0, totalElements: 0, number: 0, size: 20 } });
+    cy.visit('/employee/orders', { onBeforeLoad: (win) => setupAdminSession(win) });
+    cy.url().should('not.include', '/403');
+  });
+});
+
+describe('Route guards: noAgentOnly redirects agent on OTC URLs', () => {
+  it('agent na /otc dobija 403 (Celina 4 (Nova) §137-141)', () => {
+    cy.visit('/otc', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /otc/offers dobija 403', () => {
+    cy.visit('/otc/offers', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('klijent moze da pristupi /otc', () => {
+    cy.intercept('GET', '**/api/otc/listings**', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.visit('/otc', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.url().should('not.include', '/403');
+  });
+});
+
+// ============================================================
+//  INTER-BANK BANNER (Celina 5 (Nova) — placanja u drugu banku)
+// ============================================================
+
+describe('Inter-bank warning banner', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/accounts/my', {
+      statusCode: 200,
+      body: [
+        { id: 1, accountNumber: '222000100000000110', accountType: 'CHECKING', currency: 'RSD', balance: 100000, availableBalance: 100000, status: 'ACTIVE' },
+      ],
+    });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+  });
+
+  it('NE prikazuje banner za prazan racun primaoca', () => {
+    cy.visit('/payments/new', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.contains('Novi platni nalog').should('be.visible');
+    cy.get('[data-testid="interbank-warning-banner"]').should('not.exist');
+  });
+
+  it('NE prikazuje banner za nas-bank prefix 222', () => {
+    cy.visit('/payments/new', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('#toAccount').type('222000100000000999');
+    cy.get('[data-testid="interbank-warning-banner"]').should('not.exist');
+  });
+
+  it('PRIKAZUJE banner za prefix 444 sa 2PC objasnjenjem', () => {
+    cy.visit('/payments/new', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('#toAccount').type('444000100000000999');
+    cy.get('[data-testid="interbank-warning-banner"]').should('be.visible');
+    cy.contains('Medjubankarsko placanje').should('be.visible');
+    cy.contains('2-Phase Commit').should('be.visible');
+  });
+
+  it('SAKRIJE banner kad user obrise input', () => {
+    cy.visit('/payments/new', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('#toAccount').type('444000100000000999');
+    cy.get('[data-testid="interbank-warning-banner"]').should('be.visible');
+    cy.get('#toAccount').clear();
+    cy.get('[data-testid="interbank-warning-banner"]').should('not.exist');
+  });
+});
+
+// ============================================================
+//  OTC INTER-BANK DISCOVERY: auto-refresh indicator
+// ============================================================
+
+describe('OTC inter-bank Discovery auto-polling indicator', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/interbank/otc/listings', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/offers/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/contracts/my**', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/otc/offers/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/otc/contracts/my**', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+  });
+
+  it('prikazuje Auto 30s indikator i Osvezi dugme', () => {
+    cy.visit('/otc/offers', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('[role="tab"]').contains(/Aktivne ponude.*inter/i).click();
+    cy.get('[data-testid="auto-refresh-indicator"]').should('contain', 'Auto');
+    cy.contains('button', /Osvezi/i).should('exist');
+  });
+});
+
+// ============================================================
+//  OTC TAB BADGE COUNTS
+// ============================================================
+
+describe('OTC tab badge counts (n aktivnih)', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/otc/offers/my', {
+      statusCode: 200,
+      body: [
+        { id: 1, status: 'ACTIVE', listingTicker: 'AAPL', amount: 10, pricePerStock: 150, premium: 100, settlementDate: '2026-12-31', lastModifiedAt: '2026-01-01T00:00:00Z', lastModifiedById: 99, lastModifiedByName: 'Other', myTurn: true },
+        { id: 2, status: 'ACCEPTED', listingTicker: 'MSFT', amount: 5, pricePerStock: 400, premium: 50, settlementDate: '2026-12-31', lastModifiedAt: '2026-01-01T00:00:00Z', lastModifiedById: 99, lastModifiedByName: 'Other', myTurn: false },
+      ],
+    });
+    cy.intercept('GET', '**/api/otc/contracts/my**', {
+      statusCode: 200,
+      body: [
+        { id: 11, status: 'ACTIVE', listingTicker: 'AAPL', quantity: 10, strikePrice: 150, premium: 100, settlementDate: '2026-12-31' },
+        { id: 12, status: 'ACTIVE', listingTicker: 'TSLA', quantity: 5, strikePrice: 250, premium: 50, settlementDate: '2026-12-31' },
+        { id: 13, status: 'EXERCISED', listingTicker: 'MSFT', quantity: 3, strikePrice: 400, premium: 30, settlementDate: '2026-06-30' },
+      ],
+    });
+    cy.intercept('GET', '**/api/interbank/otc/listings', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/offers/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/contracts/my**', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+  });
+
+  it('contracts-local tab pokazuje count 2 ACTIVE ugovora (3-1 EXERCISED)', () => {
+    cy.visit('/otc/offers', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('[data-testid="count-contracts-local"]').should('contain', '2');
+  });
+});

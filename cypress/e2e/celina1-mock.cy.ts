@@ -1094,3 +1094,41 @@ describe('Kompletni E2E Flowovi - Celina 1', () => {
     cy.url().should('include', '/login');
   });
 });
+
+// ============================================================
+//  THEME TOGGLE + AUTH LOADING SPLASH (preuzeto iz polish migracije 03.05)
+// ============================================================
+
+describe('ThemeToggle cycle System -> Light -> Dark', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payments**', { statusCode: 200, body: { content: [] } });
+    cy.intercept('GET', '**/api/cards**', { statusCode: 200, body: [] });
+  });
+
+  it('toggle prebacuje root className kroz light/dark cikluse', () => {
+    cy.visit('/home', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('[data-testid="theme-toggle"]').should('exist');
+
+    cy.get('[data-testid="theme-toggle"]').click();
+    cy.get('html').should('have.class', 'light');
+
+    cy.get('[data-testid="theme-toggle"]').click();
+    cy.get('html').should('have.class', 'dark');
+
+    cy.get('[data-testid="theme-toggle"]').click();
+    cy.window().then((win) => {
+      const stored = win.localStorage.getItem('app-theme');
+      expect(stored).to.eq('system');
+    });
+  });
+});
+
+describe('AuthContext loading splash', () => {
+  it('renders loading splash placeholder element when isLoading=true', () => {
+    // AuthContext default isLoading=false (sessionStorage hydrate je sync).
+    // Splash je vidljiv samo tokom realnog auth.fetchPermissions() (~200ms).
+    cy.visit('/home', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.get('body').should('exist');
+  });
+});

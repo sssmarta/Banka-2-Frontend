@@ -17,7 +17,13 @@ vi.mock('../context/AuthContext', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 function renderRoute(
-  props: { adminOnly?: boolean; requiredPermission?: Permission } = {},
+  props: {
+    adminOnly?: boolean;
+    employeeOnly?: boolean;
+    supervisorOnly?: boolean;
+    noAgentOnly?: boolean;
+    requiredPermission?: Permission;
+  } = {},
   initialPath = '/protected'
 ) {
   return render(
@@ -42,7 +48,7 @@ describe('ProtectedRoute', () => {
     vi.clearAllMocks();
   });
 
-  it('renders nothing while loading', () => {
+  it('renders auth loading splash while loading (spec UX polish)', () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isLoading: true,
@@ -50,9 +56,10 @@ describe('ProtectedRoute', () => {
       isAdmin: false,
     });
 
-    const { container } = renderRoute();
-    // Should render null
-    expect(container.innerHTML).toBe('');
+    renderRoute();
+    // Splash sa gradient halo + spinner umesto null/blank UI
+    expect(screen.getByTestId('auth-loading-splash')).toBeInTheDocument();
+    expect(screen.getByText(/Ucitavanje sesije/i)).toBeInTheDocument();
   });
 
   it('redirects to /login if no user', () => {
@@ -210,7 +217,7 @@ describe('ProtectedRoute', () => {
     expect(screen.getByTestId('child')).toBeTruthy();
   });
 
-  it('renders nothing (null) during loading even when user data exists', () => {
+  it('renders loading splash during loading even when user data exists (isLoading takes priority)', () => {
     mockUseAuth.mockReturnValue({
       user: { email: 'admin@banka.rs', role: 'ADMIN', permissions: [Permission.ADMIN] },
       isLoading: true,
@@ -218,9 +225,10 @@ describe('ProtectedRoute', () => {
       isAdmin: true,
     });
 
-    const { container } = renderRoute();
-    // isLoading takes priority — should render null
-    expect(container.innerHTML).toBe('');
+    renderRoute();
+    // isLoading takes priority — splash is rendered, not the protected child
+    expect(screen.getByTestId('auth-loading-splash')).toBeInTheDocument();
+    expect(screen.queryByTestId('child')).toBeNull();
   });
 
   it('redirects to /login when user is null and not loading', () => {
@@ -264,5 +272,147 @@ describe('ProtectedRoute', () => {
     // adminOnly = true, but user is not admin => /403 regardless of permission
     renderRoute({ adminOnly: true, requiredPermission: Permission.TRADE_STOCKS });
     expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // supervisorOnly — Celina 3 supervisor portali + Celina 4 (Nova) Profit Banke
+  // ---------------------------------------------------------------------------
+
+  it('redirects to /403 when supervisorOnly and user is plain agent', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'agent@banka.rs',
+        role: 'EMPLOYEE',
+        permissions: [Permission.AGENT, Permission.TRADE_STOCKS],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => [Permission.AGENT, Permission.TRADE_STOCKS].includes(p),
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: true,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  it('renders children when supervisorOnly and user is supervisor (not admin)', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'supervisor@banka.rs',
+        role: 'EMPLOYEE',
+        permissions: [Permission.SUPERVISOR, Permission.TRADE_STOCKS],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => [Permission.SUPERVISOR, Permission.TRADE_STOCKS].includes(p),
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('renders children when supervisorOnly and user is admin (admins are supervisors per spec)', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'admin@banka.rs', role: 'ADMIN', permissions: [Permission.ADMIN] },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.ADMIN,
+      isAdmin: true,
+      isSupervisor: true,
+      isAgent: false,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('redirects to /403 when supervisorOnly and user is plain client', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'klijent@banka.rs', role: 'CLIENT', permissions: [] },
+      isLoading: false,
+      hasPermission: () => false,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // noAgentOnly — Celina 4 (Nova) §137-141 OTC pristup (klijent + supervizor da, agent ne)
+  // ---------------------------------------------------------------------------
+
+  it('redirects to /403 when noAgentOnly and user is plain agent', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'agent@banka.rs',
+        role: 'EMPLOYEE',
+        permissions: [Permission.AGENT, Permission.TRADE_STOCKS],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => [Permission.AGENT, Permission.TRADE_STOCKS].includes(p),
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: true,
+    });
+
+    renderRoute({ noAgentOnly: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  it('renders children when noAgentOnly and user is client', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'klijent@banka.rs', role: 'CLIENT', permissions: [Permission.TRADE_STOCKS] },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.TRADE_STOCKS,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+    });
+
+    renderRoute({ noAgentOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('renders children when noAgentOnly and user is supervisor', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'supervisor@banka.rs',
+        role: 'EMPLOYEE',
+        permissions: [Permission.SUPERVISOR],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.SUPERVISOR,
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false,
+    });
+
+    renderRoute({ noAgentOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('renders children when noAgentOnly and user is dual-role agent+supervisor', () => {
+    // Edge case: user koji je i AGENT i SUPERVISOR (npr. supervisor postavljen za agenta)
+    // — supervisor-status pobedjuje, ima OTC pristup
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'dual@banka.rs',
+        role: 'EMPLOYEE',
+        permissions: [Permission.AGENT, Permission.SUPERVISOR],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => [Permission.AGENT, Permission.SUPERVISOR].includes(p),
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: true,
+    });
+
+    renderRoute({ noAgentOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
   });
 });

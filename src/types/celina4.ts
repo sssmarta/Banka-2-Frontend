@@ -240,7 +240,13 @@ export interface InterbankTransaction {
   abortedAt?: string | null;
   lastRetryAt?: string | null;
   retryCount: number;
+  // Spec Celina 5 (Nova): BE moze (opciono) da posalje strukturisani razlog
+  // koji FE mapira kroz ERROR_CODE_MESSAGES (interbankPaymentService.ts).
+  // Ako BE salje samo `failureReason` string, FE ga prosledjuje direktno.
   failureReason?: string | null;
+  rejectionReason?: string | null;
+  errorMessage?: string | null;
+  errorCode?: string | null;
 }
 
 

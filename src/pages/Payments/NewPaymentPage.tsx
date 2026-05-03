@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
-import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash, BookUser, CheckCircle2, X } from 'lucide-react';
+import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash, BookUser, CheckCircle2, X, Globe, Loader2, XCircle, AlertTriangle } from 'lucide-react';
 import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const OUR_BANK_PREFIX = '222';
@@ -38,6 +38,58 @@ const INTERBANK_MAX_POLLS = 40;
 
 function isInterbank(accountNumber: string): boolean {
   return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== OUR_BANK_PREFIX;
+}
+
+// Spec Celina 5 (Nova) 2PC flow — 4 faze koje user vidi u stepper-u:
+//   1. Inicijalizacija (INITIATED)
+//   2. Prepare (PREPARING / PREPARED) — Banka A salje, Banka B priprema
+//   3. Commit (COMMITTING) — sredstva idu sa A na B
+//   4. Zavrseno (COMMITTED)
+//
+// Terminal statusi ABORTED i STUCK markiraju gde je flow stao + prikazuju
+// failureReason ako BE pruzi.
+const INTERBANK_STEPS = [
+  { key: 'INITIATED', label: 'Inicijalizacija', description: 'Transakcija pokrenuta' },
+  { key: 'PREPARED', label: 'Prepare', description: 'Banka primaoca proverava racun' },
+  { key: 'COMMITTING', label: 'Commit', description: 'Prenos sredstava' },
+  { key: 'COMMITTED', label: 'Zavrseno', description: 'Sredstva preneta primaocu' },
+] as const;
+
+type InterbankStepState = 'pending' | 'active' | 'done' | 'failed';
+
+function getInterbankStepState(stepKey: string, status: string): InterbankStepState {
+  // Mapa: koji step-index ce biti "active" za svaki status
+  const stepIndex: Record<string, number> = {
+    INITIATED: 0,
+    PREPARING: 1,
+    PREPARED: 1,
+    COMMITTING: 2,
+    ABORTING: 2,
+    COMMITTED: 3,
+    ABORTED: -1, // failed at last active step
+    STUCK: -1,
+  };
+  const targetKeys: readonly string[] = INTERBANK_STEPS.map((s) => s.key);
+  const stepKeyIndex = targetKeys.indexOf(stepKey);
+  const activeIndex = stepIndex[status] ?? 0;
+
+  if (status === 'COMMITTED') {
+    return 'done'; // svi koraci zavrseni
+  }
+
+  if (status === 'ABORTED' || status === 'STUCK') {
+    // Faza koja je pokusana ali nije uspela — uzimamo poslednje viđeno stanje.
+    // Posto BE moze poslati ABORTING pre ABORTED, koristimo ABORTING-step kao
+    // "failed marker"; ali ako je vec ABORTED bez ABORTING, padamo na PREPARING.
+    // U praksi: ako je ABORTED, oznaci poslednji "active" step kao failed.
+    if (stepKeyIndex < 2) return 'done'; // INITIATED, PREPARED se smatraju zavrsenim
+    if (stepKeyIndex === 2) return 'failed'; // COMMITTING/ABORTING marker
+    return 'pending'; // COMMITTED nije dosegnuto
+  }
+
+  if (stepKeyIndex < activeIndex) return 'done';
+  if (stepKeyIndex === activeIndex) return 'active';
+  return 'pending';
 }
 
 export default function NewPaymentPage() {
@@ -55,6 +107,7 @@ export default function NewPaymentPage() {
   const [saveRecipientPrompt, setSaveRecipientPrompt] = useState<{ name: string; accountNumber: string } | null>(null);
   const [savingRecipient, setSavingRecipient] = useState(false);
   const [interbankTracking, setInterbankTracking] = useState<InterbankPayment | null>(null);
+  const [retryingStuck, setRetryingStuck] = useState(false);
 
   const {
     register,
@@ -147,12 +200,77 @@ export default function NewPaymentPage() {
   const watchedModel = watch('model');
   const watchedCallNumber = watch('callNumber');
 
+  // Spec Celina 5 (Nova): Banner se prikazuje cim user unese broj racuna sa
+  // prefiksom razlicit od `222` (nasa banka). Tako klijent zna pre submit-a
+  // da je ovo medjubankarsko placanje (2PC flow, moze trajati do 2 min).
+  const isInterBankFlow = useMemo(() => {
+    if (!watchedTo || watchedTo.length < 3) return false;
+    return isInterbank(watchedTo);
+  }, [watchedTo]);
+
+  // Spec Celina 5 (Nova): "Sistem ce automatski pokusati ponovno povezivanje"
+  // za STUCK transakcije. User moze rucno triggerovati retry — fetcha status
+  // jos jednom (BE moze u medjuvremenu vec resiti) i resume polling-a ako
+  // je status izasao iz STUCK-a.
+  const handleRetryStuck = async () => {
+    if (!interbankTracking) return;
+    setRetryingStuck(true);
+    try {
+      const refreshed = await interbankPaymentService.getStatus(interbankTracking.transactionId);
+      setInterbankTracking(refreshed);
+      if (refreshed.status === 'STUCK') {
+        toast.info('Transakcija je i dalje zaglavljena. Pokusajte ponovo za par sekundi.');
+      } else if (INTERBANK_TERMINAL_STATUSES.includes(refreshed.status)) {
+        if (refreshed.status === 'COMMITTED') {
+          toast.success('Transakcija je u medjuvremenu uspesno zavrsena.');
+        } else {
+          toast.error(refreshed.failureReason ?? 'Transakcija nije uspela.');
+        }
+      } else {
+        // Vratila se u in-progress stanje (npr. PREPARING), nastavi polling
+        toast.info('Transakcija je nastavila — pratite napredak.');
+        try {
+          const finalStatus = await pollInterbankUntilDone(refreshed.transactionId);
+          if (finalStatus.status === 'COMMITTED') {
+            toast.success('Inter-bank placanje je uspesno izvrseno.');
+          } else if (finalStatus.failureReason) {
+            toast.error(finalStatus.failureReason);
+          }
+        } catch {
+          toast.error('Polling statusa nije uspeo. Pogledajte istoriju placanja.');
+        }
+      }
+    } catch {
+      toast.error('Nije bilo moguce osveziti status. Banka primaoca jos nije dostupna.');
+    } finally {
+      setRetryingStuck(false);
+    }
+  };
+
   const pollInterbankUntilDone = async (transactionId: string) => {
     let attempts = 0;
+    let lastStatus: InterbankPayment['status'] | null = null;
     while (attempts < INTERBANK_MAX_POLLS) {
       attempts += 1;
       await new Promise((resolve) => setTimeout(resolve, INTERBANK_POLL_MS));
       const status = await interbankPaymentService.getStatus(transactionId);
+      // Spec UX polish: toast notifikacija pri svakoj fazi prelaza (osim
+      // terminalnih, koje ce biti najavljen u onSubmit handler-u). Tako
+      // user dobija povratnu informaciju i pre nego sto pogleda modal.
+      if (
+        lastStatus !== status.status &&
+        !INTERBANK_TERMINAL_STATUSES.includes(status.status)
+      ) {
+        const phaseToast: Partial<Record<InterbankPayment['status'], string>> = {
+          PREPARING: 'Faza 1 (Prepare): Banka primaoca proverava racun...',
+          PREPARED: 'Faza 1 zavrsena: Banka primaoca je spremna.',
+          COMMITTING: 'Faza 2 (Commit): Prebacujem sredstva...',
+          ABORTING: 'Pokusavam abortiranje transakcije...',
+        };
+        const msg = phaseToast[status.status];
+        if (msg) toast.info(msg);
+        lastStatus = status.status;
+      }
       setInterbankTracking((prev) =>
         prev &&
         prev.status === status.status &&
@@ -330,6 +448,26 @@ export default function NewPaymentPage() {
                   {errors.recipientName && <p className="text-sm text-destructive">{errors.recipientName.message}</p>}
                 </div>
               </div>
+
+              {isInterBankFlow && (
+                <div
+                  data-testid="interbank-warning-banner"
+                  className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/30 p-4"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
+                    <Globe className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      Medjubankarsko placanje
+                    </p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                      Broj racuna primaoca pocinje sa <span className="font-mono font-semibold">{watchedTo.slice(0, 3)}</span> — to je druga banka.
+                      Transakcija ide kroz 2-Phase Commit protokol i moze trajati do 2 minuta. Status pratite u real-time-u nakon potvrde.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -661,31 +799,186 @@ export default function NewPaymentPage() {
         }}
       />
 
-      {interbankTracking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-up">
-          <Card className="w-full max-w-md mx-4 rounded-2xl border shadow-2xl">
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-base">Inter-bank status</h3>
-                <span className="font-mono text-sm">{interbankTracking.status}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Transaction ID: <span className="font-mono">{interbankTracking.transactionId}</span>
-              </p>
-              {interbankTracking.failureReason && (
-                <p className="text-sm text-destructive">{interbankTracking.failureReason}</p>
-              )}
-              {INTERBANK_TERMINAL_STATUSES.includes(interbankTracking.status) && (
-                <div className="flex justify-end">
-                  <Button type="button" onClick={() => setInterbankTracking(null)}>
-                    Zatvori
-                  </Button>
+      {interbankTracking && (() => {
+        const isTerminal = INTERBANK_TERMINAL_STATUSES.includes(interbankTracking.status);
+        const isSuccess = interbankTracking.status === 'COMMITTED';
+        const isAborted = interbankTracking.status === 'ABORTED';
+        const isStuck = interbankTracking.status === 'STUCK';
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-up"
+            data-testid="interbank-status-modal"
+          >
+            <Card className="w-full max-w-lg mx-4 rounded-2xl border shadow-2xl">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg ${
+                        isSuccess
+                          ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/30'
+                          : isAborted || isStuck
+                            ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-rose-500/30'
+                            : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-500/30'
+                      }`}
+                    >
+                      <Globe className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base">Medjubankarsko placanje</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Transaction ID: <span className="font-mono">{interbankTracking.transactionId}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-mono font-medium ${
+                      isSuccess
+                        ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                        : isAborted || isStuck
+                          ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                          : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                    }`}
+                    data-testid="interbank-status-badge"
+                  >
+                    {interbankTracking.status}
+                  </span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+
+                {/* 2PC stepper — vizualizuje napredak kroz 4 faze */}
+                <div className="space-y-2" data-testid="interbank-stepper">
+                  {INTERBANK_STEPS.map((step, index) => {
+                    const state = getInterbankStepState(step.key, interbankTracking.status);
+                    const isLast = index === INTERBANK_STEPS.length - 1;
+
+                    return (
+                      <div
+                        key={step.key}
+                        className="flex items-start gap-3"
+                        data-testid={`interbank-step-${step.key}`}
+                        data-state={state}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div
+                            className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${
+                              state === 'done'
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : state === 'active'
+                                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                                  : state === 'failed'
+                                    ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                    : 'border-muted bg-muted/40 text-muted-foreground'
+                            }`}
+                          >
+                            {state === 'done' ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : state === 'active' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : state === 'failed' ? (
+                              <XCircle className="h-4 w-4" />
+                            ) : (
+                              <span className="text-xs font-semibold">{index + 1}</span>
+                            )}
+                          </div>
+                          {!isLast && (
+                            <div
+                              className={`mt-1 h-6 w-0.5 ${
+                                state === 'done' ? 'bg-emerald-500/50' : 'bg-border'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div className="pb-2">
+                          <p
+                            className={`text-sm font-medium ${
+                              state === 'done'
+                                ? 'text-foreground'
+                                : state === 'active'
+                                  ? 'text-foreground'
+                                  : state === 'failed'
+                                    ? 'text-rose-700 dark:text-rose-300'
+                                    : 'text-muted-foreground'
+                            }`}
+                          >
+                            {step.label}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{step.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {isStuck && (
+                  <div
+                    className="rounded-lg border border-amber-500/40 bg-amber-50/70 dark:bg-amber-950/30 p-3"
+                    data-testid="interbank-stuck-warning"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                          Transakcija je zaglavljena (STUCK)
+                        </p>
+                        <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                          Banka primaoca nije odgovorila u ocekivanom vremenu. Sistem ce automatski pokusati ponovno
+                          povezivanje. Mozete i rucno proveriti status — ako je transakcija u medjuvremenu zavrsena,
+                          status ce se odmah azurirati.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleRetryStuck()}
+                        disabled={retryingStuck}
+                        data-testid="interbank-stuck-retry-btn"
+                        className="border-amber-500/40 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                      >
+                        {retryingStuck ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            Proveravam...
+                          </>
+                        ) : (
+                          <>
+                            <SendHorizonal className="mr-2 h-3 w-3" />
+                            Pokusaj ponovo
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {interbankTracking.failureReason && (
+                  <div className="rounded-lg border border-rose-500/30 bg-rose-50/70 dark:bg-rose-950/30 p-3">
+                    <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Razlog</p>
+                    <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{interbankTracking.failureReason}</p>
+                  </div>
+                )}
+
+                {!isTerminal && (
+                  <p className="text-xs text-muted-foreground italic">
+                    Polling na svake {INTERBANK_POLL_MS / 1000}s — 2PC moze trajati do 2 minuta.
+                  </p>
+                )}
+
+                {isTerminal && (
+                  <div className="flex justify-end">
+                    <Button type="button" onClick={() => setInterbankTracking(null)}>
+                      Zatvori
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
     </div>
   );
 }

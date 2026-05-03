@@ -250,4 +250,55 @@ describe('OrdersListPage', () => {
 
     expect(screen.getByText('Limit')).toBeInTheDocument();
   });
+
+  // ---------- AfterHours warning badge (Celina 3 spec linija 404) ----------
+
+  it('does not show afterhours warning badge for orders created during regular hours', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<OrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Detalji').length).toBeGreaterThan(0);
+    });
+
+    // Expand prvi order (afterHours: false)
+    await user.click(screen.getAllByText('Detalji')[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Sakrij')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('order-1-afterhours-warning')).not.toBeInTheDocument();
+  });
+
+  it('shows afterhours warning badge with +30 min/fill explanation', async () => {
+    const user = userEvent.setup();
+
+    // Override mock: afterHours: true za prvi order
+    const ordersWithAfterHours: Order[] = [
+      { ...mockOrders[0], afterHours: true },
+      mockOrders[1],
+    ];
+    mockGetAll.mockResolvedValue({
+      content: ordersWithAfterHours,
+      totalPages: 1,
+      totalElements: 2,
+      number: 0,
+      size: 20,
+    });
+
+    renderWithProviders(<OrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Detalji').length).toBeGreaterThan(0);
+    });
+
+    await user.click(screen.getAllByText('Detalji')[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('order-1-afterhours-warning')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('+30 min/fill')).toBeInTheDocument();
+  });
 });

@@ -29,6 +29,12 @@ type OfferFormState = {
 const getListingKey = (listing: OtcInterbankListing) =>
   `${listing.bankCode}:${listing.sellerPublicId}:${listing.listingTicker}`;
 
+// Spec Celina 5 (Nova): "Ovo moze da se vrsi na nekom vremenskom intervalu
+// ili kada neko udje na stranicu". Mount fetch pokriva "kada udje", ovo
+// pokriva "vremenski interval". 30s je dovoljno cest da klijent vidi nove
+// listinge brzo, ali nije agresivno (~120 zahteva/h po userku).
+const AUTO_REFRESH_MS = 30_000;
+
 /*
   ROLE FILTER (Spec Celina 5 (Nova) §840-848):
   "Klijenti vide ponude Klijenata, Aktuari vide ponude Aktuara."
@@ -84,10 +90,32 @@ export default function OtcInterBankDiscoveryTab() {
 
     try {
       const data = await interbankOtcService.listRemoteListings();
-      setListings(data ?? []);
+      // Change-detection guard (Runda LOW polish 03.05): polling svake 30s
+      // bi inace replace-ovao listings array svaki tick (nova referenca →
+      // ceo TableBody rerender). Poredjenje po stable serialized shape
+      // sprecava taj churn ako nista nije promenjeno.
+      const next = data ?? [];
+      setListings((prev) => {
+        if (prev.length !== next.length) return next;
+        for (let i = 0; i < next.length; i++) {
+          const a = prev[i];
+          const b = next[i];
+          if (
+            a.bankCode !== b.bankCode ||
+            a.sellerPublicId !== b.sellerPublicId ||
+            a.listingTicker !== b.listingTicker ||
+            a.availableQuantity !== b.availableQuantity ||
+            a.currentPrice !== b.currentPrice ||
+            a.sellerRole !== b.sellerRole
+          ) {
+            return next;
+          }
+        }
+        return prev; // identicno — ne re-renderuj
+      });
     } catch {
       toast.error('Neuspesno ucitavanje OTC ponuda iz drugih banaka.');
-      setListings([]);
+      setListings((prev) => (prev.length === 0 ? prev : []));
     } finally {
       if (mode === 'initial') {
         setLoading(false);
@@ -100,6 +128,23 @@ export default function OtcInterBankDiscoveryTab() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Auto-polling 30s — pauzirano kad je tab sakriven (Document Visibility API)
+  // ili dok user pregovara (`openedListingKey != null`). Spec Celina 5 (Nova)
+  // §818-820: "moze se vrsiti na nekom vremenskom intervalu ili kada neko
+  // udje na stranicu".
+  useEffect(() => {
+    if (openedListingKey !== null) return; // pause polling tokom pregovora
+
+    const tick = () => {
+      // Ne polluj ako je tab u pozadini — stedi BE/CPU
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void refresh('manual');
+    };
+
+    const timerId = window.setInterval(tick, AUTO_REFRESH_MS);
+    return () => window.clearInterval(timerId);
+  }, [refresh, openedListingKey]);
 
   const openForListing = (listing: OtcInterbankListing) => {
     setOpenedListingKey(getListingKey(listing));
@@ -180,16 +225,35 @@ export default function OtcInterBankDiscoveryTab() {
             {myRole === 'CLIENT' ? 'Klijenti' : 'Aktuari'}
           </Badge>
         </CardTitle>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void refresh('manual')}
-          disabled={loading || refreshing}
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Osvezi
-        </Button>
+        <div className="flex items-center gap-2">
+          <span
+            className="hidden md:inline-flex items-center gap-1 rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+            data-testid="auto-refresh-indicator"
+            title={
+              openedListingKey === null
+                ? `Auto-osvezavanje na svakih ${AUTO_REFRESH_MS / 1000}s. Pauzira se tokom pregovora.`
+                : 'Auto-osvezavanje pauzirano dok je forma za pregovor otvorena.'
+            }
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                openedListingKey === null ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+              }`}
+              aria-hidden="true"
+            />
+            {openedListingKey === null ? `Auto ${AUTO_REFRESH_MS / 1000}s` : 'Pauza'}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void refresh('manual')}
+            disabled={loading || refreshing}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Osvezi
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {!loading && (hiddenByRoleCount > 0 || unknownRoleCount > 0) && (

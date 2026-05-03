@@ -13,6 +13,7 @@ import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import interbankOtcService from '@/services/interbankOtcService';
+import { pickFailureReason } from '@/services/interbankPaymentService';
 import { accountService } from '@/services/accountService';
 import type { Account } from '@/types/celina2';
 import {
@@ -119,7 +120,11 @@ function matchesCurrentUser(contract: OtcInterbankContract, user: ReturnType<typ
     .some((value) => identifiers.has(value));
 }
 
-export default function OtcInterBankContractsTab() {
+type Props = {
+  onActiveCountChange?: (count: number) => void;
+};
+
+export default function OtcInterBankContractsTab({ onActiveCountChange }: Props = {}) {
   // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti nemaju
   // pristup OTC inter-bank pregovaranju. Role mapiranje izostavlja isAgent.
   const { user, isAdmin, isSupervisor } = useAuth();
@@ -151,6 +156,13 @@ export default function OtcInterBankContractsTab() {
   useEffect(() => {
     void reloadContracts(filter);
   }, [filter, reloadContracts]);
+
+  // Tab badge count (Runda LOW polish): broj ACTIVE ugovora za parent tab.
+  // Filter trenutno moze biti bilo koji status, ali za badge brojimo samo
+  // aktivne nezavisno od trenutnog filtera.
+  useEffect(() => {
+    onActiveCountChange?.(contracts.filter((c) => c.status === 'ACTIVE').length);
+  }, [contracts, onActiveCountChange]);
 
   useEffect(() => {
     void (async () => {
@@ -199,7 +211,14 @@ export default function OtcInterBankContractsTab() {
             if (data.status === 'COMMITTED') {
               toast.success('Inter-bank exercise je uspesno finalizovan.');
             } else {
-              toast.error(data.failureReason || 'Inter-bank exercise je prekinut.');
+              // Spec Celina 5 (Nova): mapiraj BE errorCode na lokalizovanu poruku
+              // ako postoji; inace prikazi raw failureReason ili generican fallback.
+              toast.error(
+                pickFailureReason(
+                  data as { failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string },
+                  'Inter-bank exercise je prekinut.',
+                ),
+              );
             }
           }
         } catch (error) {
@@ -276,7 +295,12 @@ export default function OtcInterBankContractsTab() {
         if (transaction.status === 'COMMITTED') {
           toast.success('Inter-bank exercise je uspesno finalizovan.');
         } else {
-          toast.error(transaction.failureReason || 'Inter-bank exercise je prekinut.');
+          toast.error(
+            pickFailureReason(
+              transaction as { failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string },
+              'Inter-bank exercise je prekinut.',
+            ),
+          );
         }
       }
     } catch (error) {
@@ -703,15 +727,19 @@ export default function OtcInterBankContractsTab() {
                   </div>
                 )}
 
-                {progressState.transaction.failureReason && (
-                  <Alert variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>SAGA je abortirana</AlertTitle>
-                    <AlertDescription>
-                      {progressState.transaction.failureReason}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                {(() => {
+                  const tx = progressState.transaction as { failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string };
+                  const localizedReason = (tx.failureReason || tx.rejectionReason || tx.errorMessage || tx.errorCode)
+                    ? pickFailureReason(tx, '')
+                    : '';
+                  return localizedReason !== '' ? (
+                    <Alert variant="destructive" data-testid="saga-aborted-alert">
+                      <XCircle className="h-4 w-4" />
+                      <AlertTitle>SAGA je abortirana</AlertTitle>
+                      <AlertDescription>{localizedReason}</AlertDescription>
+                    </Alert>
+                  ) : null;
+                })()}
               </div>
             )}
           </Dialog.Content>

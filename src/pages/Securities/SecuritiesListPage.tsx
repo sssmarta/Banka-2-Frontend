@@ -706,9 +706,9 @@ export default function SecuritiesListPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-auto">
               <Table>
-                <TableHeader>
+                <TableHeader sticky>
                   <TableRow className="bg-muted/30 dark:bg-slate-900/30 hover:bg-muted/30">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-[130px]">Ticker</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Naziv</TableHead>

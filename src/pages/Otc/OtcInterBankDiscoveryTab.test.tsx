@@ -258,4 +258,76 @@ describe('OtcInterBankDiscoveryTab', () => {
       expect(screen.getByTestId('role-filter-badge')).toHaveTextContent('Aktuari');
     });
   });
+
+  // ---------- Auto-polling (E spec follow-up Celina 5 (Nova) §818-820) ----------
+
+  describe('auto-polling', () => {
+    it('renders auto-refresh indicator with active state by default', async () => {
+      renderWithProviders(<OtcInterBankDiscoveryTab />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('auto-refresh-indicator')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('auto-refresh-indicator')).toHaveTextContent(/Auto.*30s/i);
+    });
+
+    it('polls listings on 30s interval', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      try {
+        renderWithProviders(<OtcInterBankDiscoveryTab />);
+
+        // Initial load
+        await waitFor(() => {
+          expect(mockListRemoteListings).toHaveBeenCalledTimes(1);
+        });
+
+        // Advance time by 30s — auto poll trigger
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        await waitFor(() => {
+          expect(mockListRemoteListings).toHaveBeenCalledTimes(2);
+        });
+
+        // Second tick after another 30s
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        await waitFor(() => {
+          expect(mockListRemoteListings).toHaveBeenCalledTimes(3);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('pauses polling while user is negotiating (form open)', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+
+      try {
+        renderWithProviders(<OtcInterBankDiscoveryTab />);
+
+        await waitFor(() => {
+          expect(mockListRemoteListings).toHaveBeenCalledTimes(1);
+        });
+
+        // Otvori formu za pregovor
+        await user.click(screen.getByRole('button', { name: /Napravi ponudu/i }));
+
+        // Indikator se prebacuje na "Pauza"
+        await waitFor(() => {
+          expect(screen.getByTestId('auto-refresh-indicator')).toHaveTextContent(/Pauza/i);
+        });
+
+        // 30s prolazi — NE sme se pollovati
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        // Jos uvek samo 1 poziv (initial mount)
+        expect(mockListRemoteListings).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

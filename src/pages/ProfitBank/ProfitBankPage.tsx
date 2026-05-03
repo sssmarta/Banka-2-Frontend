@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Landmark, TrendingUp, Users, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Landmark, TrendingUp, Users, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import profitBankService from '@/services/profitBankService';
 import investmentFundService from '@/services/investmentFundService';
 import FundInvestDialog from '@/pages/Funds/FundInvestDialog';
 import FundWithdrawDialog from '@/pages/Funds/FundWithdrawDialog';
 import { useAuth } from '@/context/AuthContext';
-import type { ActuaryProfit, ClientFundPosition } from '@/types/celina4';
+import type { ActuaryProfit, ClientFundPosition, InvestmentFundDetail } from '@/types/celina4';
 import { formatAmount, getErrorMessage } from '@/utils/formatters';
 import { toast } from '@/lib/notify';
 
@@ -39,6 +39,32 @@ export default function ProfitBankPage() {
   const [loadingPositions, setLoadingPositions] = useState(true);
   const [minByFundId, setMinByFundId] = useState<Record<number, number>>({});
   const [dialog, setDialog] = useState<DialogState>(null);
+  // Per-fund holdings breakdown (Spec Celina 4 (Nova) §4585-4628). Klik na
+  // "Detalji" otvara expandable red ispod glavnog reda sa listom hartija fonda
+  // + fund metadata (manager, liquidity, accountNumber).
+  const [expandedFundId, setExpandedFundId] = useState<number | null>(null);
+  const [fundDetailCache, setFundDetailCache] = useState<Record<number, InvestmentFundDetail>>({});
+  const [loadingDetailFundId, setLoadingDetailFundId] = useState<number | null>(null);
+
+  const toggleExpandFund = async (fundId: number) => {
+    if (expandedFundId === fundId) {
+      setExpandedFundId(null);
+      return;
+    }
+    setExpandedFundId(fundId);
+    if (fundDetailCache[fundId]) return; // vec keshirano
+
+    setLoadingDetailFundId(fundId);
+    try {
+      const detail = await investmentFundService.get(fundId);
+      setFundDetailCache((prev) => ({ ...prev, [fundId]: detail }));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Greska pri ucitavanju detalja fonda'));
+      // Ostavi expand otvoren — UI ce pokazati error placeholder
+    } finally {
+      setLoadingDetailFundId(null);
+    }
+  };
 
   const reloadBankPositions = async () => {
     setLoadingPositions(true);
@@ -203,6 +229,7 @@ export default function ProfitBankPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10" aria-label="Detalji" />
                       <TableHead>Fond</TableHead>
                       <TableHead className="text-right">Ulozeno (RSD)</TableHead>
                       <TableHead className="text-right">Trenutna vrednost (RSD)</TableHead>
@@ -216,53 +243,167 @@ export default function ProfitBankPage() {
                       const profit = (p.currentValue ?? 0) - (p.totalInvested ?? 0);
                       const fundName = p.fundName ?? `Fond #${p.fundId}`;
                       const minContribution = minByFundId[p.fundId] ?? 0;
+                      const isExpanded = expandedFundId === p.fundId;
+                      const detail = fundDetailCache[p.fundId];
+                      const isLoadingDetail = loadingDetailFundId === p.fundId;
                       return (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">{fundName}</TableCell>
-                          <TableCell className="text-right font-mono">{formatAmount(p.totalInvested ?? 0)}</TableCell>
-                          <TableCell className="text-right font-mono">{formatAmount(p.currentValue ?? 0)}</TableCell>
-                          <TableCell className="text-right font-mono">
-                            {p.percentOfFund != null ? `${p.percentOfFund.toFixed(2)}%` : '—'}
-                          </TableCell>
-                          <TableCell className={`text-right font-mono ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {formatAmount(profit)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                        <Fragment key={p.id}>
+                          <TableRow
+                            data-testid={`bank-fund-row-${p.fundId}`}
+                            className={isExpanded ? 'bg-muted/30' : undefined}
+                          >
+                            <TableCell>
                               <Button
                                 size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setDialog({
-                                    mode: 'invest',
-                                    fundId: p.fundId,
-                                    fundName,
-                                    minimumContribution: minContribution,
-                                  })
-                                }
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => void toggleExpandFund(p.fundId)}
+                                aria-label={isExpanded ? 'Sakrij detalje fonda' : 'Prikazi detalje fonda'}
+                                data-testid={`bank-fund-expand-${p.fundId}`}
                               >
-                                <ArrowDownToLine className="mr-1 h-3.5 w-3.5" />
-                                Uplati u ime banke
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={(p.currentValue ?? 0) <= 0}
-                                onClick={() =>
-                                  setDialog({
-                                    mode: 'withdraw',
-                                    fundId: p.fundId,
-                                    fundName,
-                                    position: p,
-                                  })
-                                }
-                              >
-                                <ArrowUpFromLine className="mr-1 h-3.5 w-3.5" />
-                                Povuci u ime banke
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                            <TableCell className="font-medium">{fundName}</TableCell>
+                            <TableCell className="text-right font-mono">{formatAmount(p.totalInvested ?? 0)}</TableCell>
+                            <TableCell className="text-right font-mono">{formatAmount(p.currentValue ?? 0)}</TableCell>
+                            <TableCell className="text-right font-mono">
+                              {p.percentOfFund != null ? `${p.percentOfFund.toFixed(2)}%` : '—'}
+                            </TableCell>
+                            <TableCell className={`text-right font-mono ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatAmount(profit)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setDialog({
+                                      mode: 'invest',
+                                      fundId: p.fundId,
+                                      fundName,
+                                      minimumContribution: minContribution,
+                                    })
+                                  }
+                                >
+                                  <ArrowDownToLine className="mr-1 h-3.5 w-3.5" />
+                                  Uplati u ime banke
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={(p.currentValue ?? 0) <= 0}
+                                  onClick={() =>
+                                    setDialog({
+                                      mode: 'withdraw',
+                                      fundId: p.fundId,
+                                      fundName,
+                                      position: p,
+                                    })
+                                  }
+                                >
+                                  <ArrowUpFromLine className="mr-1 h-3.5 w-3.5" />
+                                  Povuci u ime banke
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow data-testid={`bank-fund-breakdown-${p.fundId}`} className="bg-muted/10">
+                              <TableCell colSpan={7} className="p-0">
+                                <div className="p-4 space-y-4">
+                                  {isLoadingDetail ? (
+                                    <div className="flex items-center justify-center gap-3 py-6">
+                                      <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                      <span className="text-sm text-muted-foreground">Ucitavam detalje fonda...</span>
+                                    </div>
+                                  ) : !detail ? (
+                                    <div className="rounded-md border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/30 p-3 text-sm text-amber-700 dark:text-amber-300">
+                                      Detalji fonda nisu dostupni. Backend je odgovorio greskom.
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {/* Mini KPI grid */}
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        <div className="rounded-lg border bg-background p-3">
+                                          <p className="text-xs text-muted-foreground">Menadzer</p>
+                                          <p className="text-sm font-semibold">{detail.managerName}</p>
+                                        </div>
+                                        <div className="rounded-lg border bg-background p-3">
+                                          <p className="text-xs text-muted-foreground">Vrednost fonda</p>
+                                          <p className="text-sm font-mono font-semibold">{formatAmount(detail.fundValue)} RSD</p>
+                                        </div>
+                                        <div className="rounded-lg border bg-background p-3">
+                                          <p className="text-xs text-muted-foreground">Likvidnost</p>
+                                          <p className="text-sm font-mono font-semibold">{formatAmount(detail.liquidAmount)} RSD</p>
+                                        </div>
+                                        <div className="rounded-lg border bg-background p-3">
+                                          <p className="text-xs text-muted-foreground">Min. ulog</p>
+                                          <p className="text-sm font-mono font-semibold">{formatAmount(detail.minimumContribution)} RSD</p>
+                                        </div>
+                                      </div>
+
+                                      {/* Holdings tabela */}
+                                      <div>
+                                        <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                          Hartije u fondu ({detail.holdings.length})
+                                        </p>
+                                        {detail.holdings.length === 0 ? (
+                                          <div className="rounded-md border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+                                            Fond trenutno nema portfolio hartija (samo likvidnost).
+                                          </div>
+                                        ) : (
+                                          <Table>
+                                            <TableHeader>
+                                              <TableRow>
+                                                <TableHead>Ticker</TableHead>
+                                                <TableHead>Naziv</TableHead>
+                                                <TableHead className="text-right">Kolicina</TableHead>
+                                                <TableHead className="text-right">Cena</TableHead>
+                                                <TableHead className="text-right">Vrednost</TableHead>
+                                                <TableHead className="text-right">Promena</TableHead>
+                                                <TableHead className="text-right">Datum kupovine</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {detail.holdings.map((h) => {
+                                                const value = h.quantity * h.currentPrice;
+                                                const isPositive = h.change >= 0;
+                                                return (
+                                                  <TableRow key={`${h.listingId}-${h.acquisitionDate}`}>
+                                                    <TableCell className="font-mono font-semibold">{h.ticker}</TableCell>
+                                                    <TableCell className="text-xs text-muted-foreground">{h.name}</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatAmount(h.quantity, 0)}</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatAmount(h.currentPrice)}</TableCell>
+                                                    <TableCell className="text-right font-mono font-semibold">{formatAmount(value)}</TableCell>
+                                                    <TableCell
+                                                      className={`text-right font-mono ${
+                                                        isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                                      }`}
+                                                    >
+                                                      {isPositive ? '+' : ''}
+                                                      {formatAmount(h.change)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs text-muted-foreground">{h.acquisitionDate}</TableCell>
+                                                  </TableRow>
+                                                );
+                                              })}
+                                            </TableBody>
+                                          </Table>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </TableBody>
