@@ -95,11 +95,12 @@ describe('MainLayout', () => {
     expect(main!.className).toContain('min-h-screen');
   });
 
-  it('renders a container div inside main for content spacing', () => {
+  it('renders a content container inside main with proper padding', () => {
     renderLayout();
-    const container = document.querySelector('main .container');
+    const container = document.querySelector('main > div');
     expect(container).not.toBeNull();
     expect(container!.className).toContain('py-6');
+    expect(container!.className).toContain('max-w-screen-2xl');
   });
 
   it('renders different child routes based on path', () => {
