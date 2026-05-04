@@ -158,7 +158,7 @@ export default function OtcTrgovinaPage() {
         </AlertDescription>
       </Alert>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'local' | 'remote')}>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'local' | 'remote')} className="space-y-4">
         <TabsList>
           <TabsTrigger value="local">Iz nase banke</TabsTrigger>
           <TabsTrigger value="remote">Iz drugih banaka</TabsTrigger>

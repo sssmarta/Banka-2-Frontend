@@ -17,9 +17,13 @@
   50%      { opacity: 0.95; transform: scale(1.08); }
 }
 
+/* IMPORTANT: ne koristi transform: translate u animaciji jer backdrop-filter
+   prestaje da radi cim element ima ne-identity transform-matrix (browser
+   gotcha). Koristimo opacity-only animaciju da panel ostane staklen.
+   Animation property je svejedno prisutan da bi panel imao subtle entry effect. */
 @keyframes arbitro-fade-in-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes arbitro-shimmer {
@@ -78,25 +82,34 @@
    ili absolute za drawer). Ovde NE override-ujemo da Tailwind utility-i rade. */
 .arbitro-panel {
   isolation: isolate;
+  /* Solid (NE prozirno) background — backdrop-filter ne radi pouzdano u
+     svim Vite 8 + nginx + browser kombinacijama (compositor layer-i mogu
+     biti optimizovani off pa fallback ide direktno na alpha). Tekst MORA
+     biti citljiv, pa koristi solid svetlu boju u light theme + dark u dark.
+     backdrop-filter ostaje kao bonus za browser-e gde radi. */
   background: linear-gradient(160deg,
-    rgba(255, 255, 255, 0.78) 0%,
-    rgba(248, 250, 255, 0.62) 100%);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+    rgb(248, 250, 255) 0%,
+    rgb(241, 245, 252) 100%);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
   box-shadow:
     0 32px 64px -16px rgba(15, 23, 42, 0.25),
     0 16px 32px -8px rgba(99, 102, 241, 0.18),
     0 4px 12px -2px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
   animation: arbitro-fade-in-up 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform: none !important;
 }
 
 .dark .arbitro-panel {
+  /* Solid dark — tekst (svetli) mora biti citljiv kontrast 4.5:1+ minimum.
+     Prikazani gradient od #18181f do #0f0f17 daje pravi liquid glass
+     izgled bez transparentnosti. */
   background: linear-gradient(160deg,
-    rgba(24, 24, 32, 0.72) 0%,
-    rgba(15, 15, 22, 0.62) 100%);
-  border-color: rgba(99, 102, 241, 0.18);
+    rgb(24, 24, 32) 0%,
+    rgb(15, 15, 22) 100%);
+  border-color: rgba(99, 102, 241, 0.25);
   box-shadow:
     0 32px 64px -16px rgba(0, 0, 0, 0.55),
     0 16px 32px -8px rgba(99, 102, 241, 0.25),

@@ -169,8 +169,11 @@ export default function GlobeView({ exchanges }: Props) {
   const dayNightMaterial = useMemo(() => {
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous';
-    const dayTex = loader.load('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
-    const nightTex = loader.load('//unpkg.com/three-globe/example/img/earth-night.jpg');
+    // Lokalne texture iz public/textures/ — kopirano iz node_modules/three-globe/
+    // example/img/. Ne zavisi od unpkg/CDN, radi i sa restriktivnim CSP-om
+    // (`img-src 'self'` je dovoljno), ne pravi mixed-content u dev-u.
+    const dayTex = loader.load('/textures/earth-blue-marble.jpg');
+    const nightTex = loader.load('/textures/earth-night.jpg');
     return new THREE.ShaderMaterial({
       uniforms: {
         dayTexture: { value: dayTex },
@@ -295,7 +298,7 @@ export default function GlobeView({ exchanges }: Props) {
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  const backgroundImageUrl = '//unpkg.com/three-globe/example/img/night-sky.png';
+  const backgroundImageUrl = '/textures/night-sky.png';
 
   // tick is intentionally referenced so re-renders pick up latest local time for countdown
   void tick;
@@ -318,7 +321,7 @@ export default function GlobeView({ exchanges }: Props) {
             width={size.width}
             height={size.height}
             globeMaterial={dayNightMaterial}
-            backgroundImageUrl={isDark ? backgroundImageUrl : ''}
+            backgroundImageUrl={backgroundImageUrl}
             backgroundColor="rgba(0,0,0,0)"
             showAtmosphere
             atmosphereColor={isDark ? '#6366f1' : '#818cf8'}

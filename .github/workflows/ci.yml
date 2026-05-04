@@ -234,6 +234,8 @@ jobs:
             -e SPRING_MAIL_PASSWORD="ci-dummy" \
             -e EXCHANGE_API_KEY="ci-dummy-key" \
             -e STOCK_API_KEYS="ci-key-1,ci-key-2,ci-key-3,ci-key-4" \
+            -e AUTH_RATE_LIMIT_ENABLED="true" \
+            -e AUTH_RATE_LIMIT_CAPACITY="100000" \
             ghcr.io/raf-si-2025/banka2-backend:latest
 
       - name: Wait for backend to be ready

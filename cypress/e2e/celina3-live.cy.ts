@@ -550,7 +550,7 @@ describe('Live: Pregled naloga — Supervisor', () => {
     cy.intercept('PATCH', '**/api/orders/*/approve').as('approveOrder');
     cy.visit('/employee/orders');
     cy.contains('button', /Na čekanju|Na cekanju/i).click();
-    cy.wait(3000);
+    cy.wait(1500);
 
     cy.get('body').then(($body) => {
       if ($body.find('button:contains("Odobri")').length > 0) {
@@ -571,7 +571,7 @@ describe('Live: Pregled naloga — Supervisor', () => {
     cy.visit('/employee/orders');
     cy.contains('Pregled naloga', { timeout: 15000 }).should('be.visible');
     cy.contains('button', /Na čekanju|Na cekanju/i).click();
-    cy.wait(3000);
+    cy.wait(1500);
 
     cy.get('body').then(($body) => {
       if ($body.find('button:contains("Odbij")').length > 0) {
@@ -610,7 +610,7 @@ describe('Live: Moji nalozi', () => {
   it('Klijent vidi svoje ordere sa statusima', () => {
     cy.visit('/orders/my');
     cy.contains('Moji nalozi', { timeout: 15000 }).should('be.visible');
-    cy.wait(3000);
+    cy.wait(1500);
     // Klijent ima ordere koje smo kreirali u prethodnim testovima
     // Proverimo da postoji bar jedan order u listi ili prazan state
     cy.contains(/Odobren|Zavrsen|Na cekanju|Nema kreiranih naloga/i).should('exist');
@@ -802,7 +802,7 @@ describe('Live: Margin racuni', () => {
   it('Stefan ima aktivan margin racun iz seed-a', () => {
     loginAsClient();
     cy.visit('/margin-accounts');
-    cy.wait(3000);
+    cy.wait(1500);
 
     cy.get('body').then(($body) => {
       if ($body.text().includes('AKTIVAN')) {
@@ -917,7 +917,7 @@ function fetchOtpAndConfirm() {
   // Sacekaj da modal bude vidljiv
   cy.get('#otp', { timeout: 10000 }).should('be.visible');
   // Sacekaj da modal-ov request-otp zavrsi
-  cy.wait(3000);
+  cy.wait(1500);
   cy.window().then((win) => {
     const token = win.sessionStorage.getItem('accessToken');
     cy.request({
@@ -1243,7 +1243,7 @@ describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
       $btn[0].click();
     });
     cy.get('#otp', { timeout: 10000 }).should('be.visible');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.window().then((win) => {
       const token = win.sessionStorage.getItem('accessToken');
       cy.request({
@@ -1269,7 +1269,7 @@ describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
     cy.visit('/employee/orders');
     cy.contains('Pregled naloga', { timeout: 15000 }).should('be.visible');
     cy.contains('button', /Na čekanju|Na cekanju/i).click();
-    cy.wait(3000);
+    cy.wait(1500);
     cy.get('body').then(($body) => {
       if ($body.find('button:contains("Odobri")').length > 0) {
         cy.contains('button', 'Odobri').first().click();

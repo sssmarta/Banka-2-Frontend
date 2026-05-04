@@ -496,7 +496,7 @@ describe('Mock C4: Create Fund', () => {
     });
   });
 
-  it('[PENDING] S16: Supervizor popunjava formu i kreira fond', () => {
+  it('S16: Supervizor popunjava formu i kreira fond', () => {
     cy.intercept('POST', '/api/funds', {
       statusCode: 201,
       body: { id: 10, name: 'E2E Mock Fund', description: 'Mock test create fund', minimumContribution: 1500 },
@@ -516,7 +516,7 @@ describe('Mock C4: Create Fund', () => {
     cy.url().should('include', '/funds/10');
   });
 
-  it('[PENDING] S17: Validation - prazan naziv', () => {
+  it('S17: Validation - prazan naziv', () => {
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('ab');
     cy.get('#minimumContribution').clear().type('1000');
@@ -524,7 +524,7 @@ describe('Mock C4: Create Fund', () => {
     cy.contains('Naziv mora imati najmanje 3 karaktera').should('be.visible');
   });
 
-  it('[PENDING] S18: Validation - minimumContribution <= 0', () => {
+  it('S18: Validation - minimumContribution <= 0', () => {
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('Mock Valid Name');
     cy.get('#minimumContribution').clear().type('0');
@@ -532,7 +532,7 @@ describe('Mock C4: Create Fund', () => {
     cy.contains('Minimalna uplata mora biti veća od 0').should('be.visible');
   });
 
-  it('[PENDING] S19: Duplikat naziva - server vraca 400, toast error', () => {
+  it('S19: Duplikat naziva - server vraca 400, toast error', () => {
     cy.intercept('POST', '/api/funds', {
       statusCode: 400,
       body: { error: 'Fond sa tim nazivom vec postoji' },
@@ -549,7 +549,7 @@ describe('Mock C4: Create Fund', () => {
     cy.url().should('include', '/funds/create');
   });
 
-  it('[PENDING] S20: Klijent nema pristup /funds/create', () => {
+  it('S20: Klijent nema pristup /funds/create', () => {
     // ProtectedRoute sa supervisorOnly=true preusmerava klijenta na /403.
     // To je tacno ponasanje — klijent nema pravo da kreira fond po Celina 4 spec-u.
     cy.visit('/funds/create', { onBeforeLoad: setupClientSession });
@@ -957,7 +957,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.wait('@remoteOtcListings');
   };
 
-  it('[PENDING] S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
+  it('S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
     openRemoteTab();
 
     cy.contains('[role="tab"]', 'Iz drugih banaka').should('have.attr', 'aria-selected', 'true');
@@ -965,7 +965,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.get('table tbody tr').should('have.length', mockOtcRemoteListings.length);
   });
 
-  it('[PENDING] S37: Lista prikazuje bankCode i sellerName kolone', () => {
+  it('S37: Lista prikazuje bankCode i sellerName kolone', () => {
     openRemoteTab();
 
     cy.contains('th', 'Banka prodavca').should('be.visible');
@@ -976,7 +976,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.contains('Partner Seller').should('be.visible');
   });
 
-  it('[PENDING] S38: "Napravi ponudu" otvara formu i salje POST', () => {
+  it('S38: "Napravi ponudu" otvara formu i salje POST', () => {
     openRemoteTab();
 
     cy.contains('button', 'Napravi ponudu').first().click();
@@ -1001,7 +1001,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.contains('button', 'Posalji ponudu prodavcu').should('not.exist');
   });
 
-  it('[PENDING] S39: Osvezi dugme poziva listRemoteListings', () => {
+  it('S39: Osvezi dugme poziva listRemoteListings', () => {
     openRemoteTab();
 
     cy.contains('button', 'Osvezi').click();

@@ -26,72 +26,108 @@ function loginViaUI(email: string, password: string) {
   cy.contains('button', 'Prijavi se').click();
 }
 
-function loginAsAdmin() {
-  cy.session('admin-c1', () => {
-    cy.request({
-      method: 'POST',
-      url: '/api/auth/login',
-      body: { email: 'marko.petrovic@banka.rs', password: 'Admin12345' },
-      failOnStatusCode: false,
-    }).then((resp) => {
-      if (resp.status === 200) {
-        const { accessToken, refreshToken } = resp.body;
-        window.sessionStorage.setItem('accessToken', accessToken);
-        window.sessionStorage.setItem('refreshToken', refreshToken);
-        const payload = JSON.parse(atob(accessToken.split('.')[1]));
-        window.sessionStorage.setItem('user', JSON.stringify({
-          id: 1, email: payload.sub, role: payload.role || 'ADMIN',
-          firstName: 'Marko', lastName: 'Petrovic', username: 'marko.petrovic',
-          permissions: payload.permissions || ['ADMIN'],
-        }));
-      }
-    });
+// Login token cache za celokupan spec run — koristi Cypress.env() koji
+// perzistira IZMEDJU testova (test isolation ne brise env). Razlog:
+// AuthRateLimitFilter (BE Bucket4j) limit 10 req/min/IP — bez cache-a
+// brzo dobijemo 429. Login se izvrsava 1x po roli po spec fajlu.
+// Plus 429 retry sa exponential backoff za slucaj kad cache promasi.
+type CachedAuth = {
+  accessToken: string;
+  refreshToken: string;
+  user: Record<string, unknown>;
+};
+
+function _getCache(role: string): CachedAuth | null {
+  const cached = Cypress.env(`_authCache_${role}`);
+  return cached ? (cached as CachedAuth) : null;
+}
+
+function _setCache(role: string, auth: CachedAuth) {
+  Cypress.env(`_authCache_${role}`, auth);
+}
+
+function _doLoginWithRetry(email: string, password: string, attempt = 0): Cypress.Chainable<{ accessToken: string; refreshToken: string }> {
+  return cy.request({
+    method: 'POST',
+    url: '/api/auth/login',
+    body: { email, password },
+    failOnStatusCode: false,
+  }).then((resp) => {
+    if (resp.status === 200) {
+      return { accessToken: resp.body.accessToken, refreshToken: resp.body.refreshToken };
+    }
+    if (resp.status === 429 && attempt < 3) {
+      // BE rate limit — sacekaj 65s pa pokusaj ponovo (Bucket4j 1min refill).
+      cy.wait(65000);
+      return _doLoginWithRetry(email, password, attempt + 1);
+    }
+    throw new Error(`Login failed for ${email}: ${resp.status}`);
   });
 }
 
-function loginAsClient() {
-  cy.session('client-stefan-c1', () => {
-    cy.request({
-      method: 'POST',
-      url: '/api/auth/login',
-      body: { email: 'stefan.jovanovic@gmail.com', password: 'Klijent12345' },
-      failOnStatusCode: false,
-    }).then((resp) => {
-      if (resp.status === 200) {
-        const { accessToken, refreshToken } = resp.body;
-        window.sessionStorage.setItem('accessToken', accessToken);
-        window.sessionStorage.setItem('refreshToken', refreshToken);
-        const payload = JSON.parse(atob(accessToken.split('.')[1]));
-        window.sessionStorage.setItem('user', JSON.stringify({
-          id: 2, email: payload.sub, role: payload.role || 'CLIENT',
-          firstName: 'Stefan', lastName: 'Jovanovic', username: 'stefan',
-          permissions: payload.permissions || [],
-        }));
-      }
-    });
+function _seedAndVisit(auth: CachedAuth, targetUrl?: string) {
+  // PRAVI obrazac (Cypress 12+): postavi sessionStorage kroz `onBeforeLoad`
+  // koji se izvrsava PRE nego sto stranica ucita JS. Tako AuthContext
+  // `getInitialUser()` na sync mount-u vec vidi user iz sessionStorage-a
+  // i ProtectedRoute ne redirektuje na /login.
+  //
+  // Stari pristup `cy.visit('/login') + cy.window().then(seed) + cy.visit(target)`
+  // je imao race jer je AuthContext na PRVOM cy.visit-u vec mount-ovao bez
+  // seed-a, pa LoginPage detektuje "user existed in next tick" i radi
+  // sopstveni redirect na /home, dok cy ide na targetUrl, izaziva timing race.
+  const url = targetUrl ?? '/home';
+  cy.visit(url, {
+    onBeforeLoad(win) {
+      win.sessionStorage.setItem('accessToken', auth.accessToken);
+      win.sessionStorage.setItem('refreshToken', auth.refreshToken);
+      win.sessionStorage.setItem('user', JSON.stringify(auth.user));
+    },
   });
 }
 
-function loginAsEmployee() {
-  cy.session('employee-nikola-c1', () => {
-    cy.request({
-      method: 'POST',
-      url: '/api/auth/login',
-      body: { email: 'nikola.milenkovic@banka.rs', password: 'Zaposleni12' },
-      failOnStatusCode: false,
-    }).then((resp) => {
-      if (resp.status === 200) {
-        const { accessToken, refreshToken } = resp.body;
-        window.sessionStorage.setItem('accessToken', accessToken);
-        window.sessionStorage.setItem('refreshToken', refreshToken);
-        const payload = JSON.parse(atob(accessToken.split('.')[1]));
-        window.sessionStorage.setItem('user', JSON.stringify({
-          id: 3, email: payload.sub, role: payload.role || 'EMPLOYEE',
-          firstName: 'Nikola', lastName: 'Milenkovic', username: 'nikola.milenkovic',
-          permissions: payload.permissions || ['SUPERVISOR', 'AGENT', 'TRADE_STOCKS', 'VIEW_STOCKS', 'CREATE_CONTRACTS', 'CREATE_INSURANCE'],
-        }));
-      }
-    });
+// Bez Cypress.env cache-a — token moze postati stale ako BE rebuild
+// (JWT blacklist, ili token TTL 15min istekne tokom dugog cypress run-a),
+// pa axios interceptor radi refresh-fail-logout. Fresh login svaki put
+// (BE rate limit capacity 100k, login traje 200ms — zanemarljivo).
+function loginAsAdmin(targetUrl?: string) {
+  _doLoginWithRetry('marko.petrovic@banka.rs', 'Admin12345').then((tok) => {
+    const payload = JSON.parse(atob(tok.accessToken.split('.')[1]));
+    _seedAndVisit({
+      accessToken: tok.accessToken, refreshToken: tok.refreshToken,
+      user: {
+        id: 1, email: payload.sub, role: payload.role || 'ADMIN',
+        firstName: 'Marko', lastName: 'Petrovic', username: 'marko.petrovic',
+        permissions: payload.permissions || ['ADMIN', 'SUPERVISOR', 'AGENT', 'VIEW_STOCKS', 'TRADE_STOCKS', 'CREATE_CONTRACTS'],
+      },
+    }, targetUrl);
+  });
+}
+
+function loginAsClient(targetUrl?: string) {
+  _doLoginWithRetry('stefan.jovanovic@gmail.com', 'Klijent12345').then((tok) => {
+    const payload = JSON.parse(atob(tok.accessToken.split('.')[1]));
+    _seedAndVisit({
+      accessToken: tok.accessToken, refreshToken: tok.refreshToken,
+      user: {
+        id: 2, email: payload.sub, role: payload.role || 'CLIENT',
+        firstName: 'Stefan', lastName: 'Jovanovic', username: 'stefan',
+        permissions: payload.permissions || [],
+      },
+    }, targetUrl);
+  });
+}
+
+function loginAsEmployee(targetUrl?: string) {
+  _doLoginWithRetry('nikola.milenkovic@banka.rs', 'Zaposleni12').then((tok) => {
+    const payload = JSON.parse(atob(tok.accessToken.split('.')[1]));
+    _seedAndVisit({
+      accessToken: tok.accessToken, refreshToken: tok.refreshToken,
+      user: {
+        id: 3, email: payload.sub, role: payload.role || 'EMPLOYEE',
+        firstName: 'Nikola', lastName: 'Milenkovic', username: 'nikola.milenkovic',
+        permissions: payload.permissions || ['SUPERVISOR', 'AGENT', 'TRADE_STOCKS', 'VIEW_STOCKS', 'CREATE_CONTRACTS', 'CREATE_INSURANCE'],
+      },
+    }, targetUrl);
   });
 }
 
@@ -222,27 +258,27 @@ describe('Live: Autorizacija', () => {
   });
 
   it('Client ne moze pristupiti admin rutama - 403', () => {
-    loginAsClient();
-    cy.visit('/admin/employees');
-    cy.url().should('include', '/403');
+    // loginAsClient(targetUrl) seedu-je sessionStorage U app domain-u i
+    // onda ide na targetUrl atomicno — ProtectedRoute vidi user kao
+    // CLIENT, adminOnly guard redirektuje na /403.
+    loginAsClient('/admin/employees');
+    cy.url({ timeout: 15000 }).should('include', '/403');
   });
 
   it('Client ne moze pristupiti employee portalima', () => {
-    loginAsClient();
-    cy.visit('/employee/accounts');
-    cy.url().should('include', '/403');
+    loginAsClient('/employee/accounts');
+    cy.url({ timeout: 15000 }).should('include', '/403');
   });
 
   it('404 stranica za nepostojecu rutu', () => {
-    loginAsClient();
-    cy.visit('/nepostojeca-random-stranica');
-    cy.contains(/404|nije pronađena|not found/i).should('be.visible');
+    loginAsClient('/nepostojeca-random-stranica');
+    // App.tsx:163 ima Route path="*" element={<NotFoundPage />}.
+    cy.contains(/404|nije pronadjena|nije pronađena|not found/i, { timeout: 15000 }).should('be.visible');
   });
 
   it('/dashboard redirectuje na /home', () => {
-    loginAsClient();
-    cy.visit('/dashboard');
-    cy.url().should('include', '/home');
+    loginAsClient('/dashboard');
+    cy.url({ timeout: 15000 }).should('include', '/home');
   });
 });
 
@@ -267,7 +303,7 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Lista prikazuje ime, email, poziciju', () => {
     cy.visit('/admin/employees');
-    cy.wait(3000);
+    cy.wait(1500);
     // Should show at least one employee's data
     cy.get('body').then(($body) => {
       const text = $body.text();
@@ -280,7 +316,7 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Filteri pretrage se otvaraju', () => {
     cy.visit('/admin/employees');
-    cy.wait(3000);
+    cy.wait(1500);
     // Search/filter input should exist
     // Click filter toggle first
     cy.get('button[title="Filteri"]').click();
@@ -289,7 +325,7 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Filtriranje po imenu', () => {
     cy.visit('/admin/employees');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.get('button[title="Filteri"]').click();
     cy.get('input[placeholder="Pretraga po imenu"]').type('Nikola');
     cy.wait(2000);
@@ -298,7 +334,7 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Filtriranje po email-u', () => {
     cy.visit('/admin/employees');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.get('button[title="Filteri"]').click();
     cy.get('input[placeholder="Pretraga po email-u"]').type('nikola');
     cy.wait(2000);
@@ -306,7 +342,7 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Navigacija na Novi zaposleni', () => {
     cy.visit('/admin/employees');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains(/novi|dodaj|kreiraj/i).click();
     cy.url().should('include', '/admin/employees/new');
   });
@@ -320,16 +356,16 @@ describe('Live: Upravljanje zaposlenima', () => {
 
   it('Klik na zaposlenog u tabeli otvara edit stranicu', () => {
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
     // Click on a non-admin employee (rows with "Zaposleni" badge are editable)
     cy.get('table tbody tr').not('.opacity-60').contains('Zaposleni').first().closest('tr').click({ force: true });
   });
 
   it('Edit stranica prikazuje formu sa podacima', () => {
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
     cy.get('table tbody tr').not('.opacity-60').contains('Zaposleni').first().closest('tr').click({ force: true });
-    cy.wait(3000);
+    cy.wait(1500);
     cy.get('#firstName').should('not.have.value', '');
   });
 });
@@ -369,7 +405,7 @@ describe('Live: Employee CRUD - Detaljno', () => {
     cy.get('[role="option"]').first().click();
 
     cy.get('[data-cy="createBtn"], button[type="submit"]').first().click();
-    cy.wait(5000);
+    cy.wait(2000);
     // Should redirect to list or show success
     cy.url().should('match', /\/admin\/employees(\/new)?/);
   });
@@ -395,7 +431,7 @@ describe('Live: Employee CRUD - Detaljno', () => {
     cy.get('[role="option"]').first().click();
 
     cy.get('[data-cy="createBtn"], button[type="submit"]').first().click();
-    cy.wait(5000);
+    cy.wait(2000);
     // Should stay on form - duplicate email error
     cy.url().should('include', '/new');
   });
@@ -416,7 +452,7 @@ describe('Live: Home Page', () => {
     loginAsClient();
     cy.visit('/home');
     cy.url().should('include', '/home');
-    cy.wait(5000);
+    cy.wait(2000);
     // Should show account cards or greeting
     cy.contains(/dobro|stefan|račun/i).should('exist');
   });
@@ -424,7 +460,7 @@ describe('Live: Home Page', () => {
   it('Home page prikazuje brze akcije sekciju', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(5000);
+    cy.wait(2000);
     // Quick actions like "Novo placanje", "Transfer" etc.
     cy.contains(/plaćanj|transfer|menjačnic/i).should('exist');
   });
@@ -432,7 +468,7 @@ describe('Live: Home Page', () => {
   it('Home page prikazuje kursnu listu', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(5000);
+    cy.wait(2000);
     // Exchange rates ticker or section
     cy.contains(/eur|usd|kurs/i).should('exist');
   });
@@ -440,7 +476,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Racuni', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Racuni').click();
     cy.url().should('include', '/accounts');
   });
@@ -448,7 +484,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Placanja', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Placanja').first().click();
     cy.url().should('match', /\/payments/);
   });
@@ -456,7 +492,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Transferi', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Prenosi').click();
     cy.url().should('include', '/transfers');
   });
@@ -464,7 +500,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Menjacnica', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Menjacnica').click();
     cy.url().should('include', '/exchange');
   });
@@ -472,7 +508,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Kartice', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Kartice').click();
     cy.url().should('include', '/cards');
   });
@@ -480,7 +516,7 @@ describe('Live: Home Page', () => {
   it('Sidebar navigacija radi - Krediti', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Krediti').click();
     cy.url().should('include', '/loans');
   });
@@ -488,7 +524,7 @@ describe('Live: Home Page', () => {
   it('Logout radi', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Odjavi se').click();
     cy.url().should('include', '/login');
     cy.window().then((win) => {
@@ -610,7 +646,7 @@ describe('Live: Multi-user scenariji', () => {
   it('Klijent NE vidi employee portale u sidebaru', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     // Employee portal links should not be visible for client
     cy.get('body').then(($body) => {
       const hasPortal = $body.text().match(/Portal za upravljanje/i);
@@ -622,7 +658,7 @@ describe('Live: Multi-user scenariji', () => {
   it('Admin vidi employee portale u sidebaru', () => {
     loginAsAdmin();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains('Employee portal').should('exist');
   });
 });
@@ -639,7 +675,7 @@ describe('Live: Kompletni navigacioni tokovi', () => {
 
     // Navigate to employees
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
     cy.url().should('include', '/admin/employees');
 
     // Navigate to create
@@ -652,46 +688,38 @@ describe('Live: Kompletni navigacioni tokovi', () => {
   });
 
   it('Client: Home -> Racuni -> Detalji -> Back', () => {
-    loginAsClient();
-    cy.visit('/home');
-    cy.wait(3000);
-
-    // Navigate to accounts
-    cy.visit('/accounts');
-    cy.wait(5000);
+    // loginAsClient(targetUrl) atomicno seed-uje sessionStorage + visit
+    loginAsClient('/accounts');
+    cy.wait(2000);
     cy.url().should('include', '/accounts');
-
-    // Try to open account details
     cy.get('body').then(($body) => {
       if ($body.find('[href*="/accounts/"], a:contains("Detalji")').length > 0) {
         cy.get('[href*="/accounts/"], a:contains("Detalji")').first().click({ force: true });
-        cy.wait(3000);
+        cy.wait(1500);
         cy.url().should('match', /\/accounts\/\d+/);
       }
     });
   });
 
   it('Client: Sidebar navigacija kroz sve sekcije', () => {
-    loginAsClient();
-
-    // Visit each main section via direct navigation
     const routes = ['/home', '/accounts', '/payments/new', '/payments/history',
       '/payments/recipients', '/transfers', '/transfers/history', '/exchange',
       '/cards', '/loans'];
 
+    // Prvi visit kroz loginAsClient (seed + atomic visit), dalje su isti origin
+    // pa sessionStorage je retained — ali zbog React 19/Vite 8 timing race-eva,
+    // koristimo loginAsClient(route) za svaki da sigurno radi.
     routes.forEach((route) => {
-      cy.visit(route);
-      cy.url().should('include', route);
+      loginAsClient(route);
+      cy.url({ timeout: 15000 }).should('include', route);
     });
   });
 
   it('Direktan pristup /payments/new radi', () => {
-    loginAsClient();
-    cy.visit('/payments/new');
+    loginAsClient('/payments/new');
     cy.url().should('include', '/payments/new');
-    cy.wait(3000);
-    // Payment form should load
-    cy.contains(/plaćanj|novo|uplatnic/i).should('exist');
+    cy.wait(1500);
+    cy.contains(/plaćanj|novo|uplatnic|nalog/i).should('exist');
   });
 });
 
@@ -728,7 +756,7 @@ describe('Live: JWT i Session Management', () => {
   it('Brisanje sessionStorage redirectuje na login', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(3000);
+    cy.wait(1500);
     cy.window().then((win) => {
       win.sessionStorage.clear();
     });
@@ -870,7 +898,7 @@ describe('Live: Employee Create forma detalji', () => {
   beforeEach(() => {
     loginAsAdmin();
     cy.visit('/admin/employees/new');
-    cy.wait(3000);
+    cy.wait(1500);
   });
 
   it('Forma prikazuje sva polja', () => {
@@ -904,7 +932,7 @@ describe('Live: Employee List detalji', () => {
   beforeEach(() => {
     loginAsAdmin();
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
   });
 
   it('Lista prikazuje stats kartice (ukupno)', () => {
@@ -939,24 +967,24 @@ describe('Live: Employee Edit detalji', () => {
 
   it('Edit prikazuje permisije', () => {
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
     cy.get('table tbody tr').not('.opacity-60').contains('Zaposleni').first().closest('tr').click({ force: true });
-    cy.wait(3000);
+    cy.wait(1500);
     cy.get('[id^="perm-"]', { timeout: 10000 }).should('have.length.greaterThan', 0);
   });
 
   it('Edit - zaposleni ne postoji (/admin/employees/999999)', () => {
     cy.visit('/admin/employees/999999');
-    cy.wait(5000);
+    cy.wait(2000);
     cy.contains(/nije pronađen|ne postoji|not found|greška|error|404/i, { timeout: 10000 })
       .should('be.visible');
   });
 
   it('Edit navigacija nazad', () => {
     cy.visit('/admin/employees');
-    cy.wait(5000);
+    cy.wait(2000);
     cy.get('table tbody tr').not('.opacity-60').contains('Zaposleni').first().closest('tr').click({ force: true });
-    cy.wait(3000);
+    cy.wait(1500);
     cy.contains(/nazad na listu|otkaži|odustani|nazad/i).first().click();
     cy.url().should('include', '/admin/employees');
   });
@@ -969,7 +997,7 @@ describe('Live: Employee Edit detalji', () => {
 describe('Live: Landing Page detalji', () => {
   beforeEach(() => {
     cy.visit('/');
-    cy.wait(3000);
+    cy.wait(1500);
   });
 
   it('Backend status indikator (server aktivan)', () => {
@@ -1040,20 +1068,29 @@ describe('Live: Forgot Password detalji', () => {
 
 describe('Live: Sidebar detalji', () => {
   it('Tema toggle (Svetlo/Tamno/Sistem)', () => {
-    loginAsClient();
-    cy.visit('/home');
-    cy.wait(3000);
-    // Find theme toggle in sidebar - it shows current theme name (Svetlo/Tamno/Sistem)
-    cy.contains(/Svetlo|Tamno|Sistem/, { timeout: 10000 })
-      .first().click({ force: true });
-    cy.wait(1000);
-    cy.contains(/Svetlo|Tamno|Sistem/, { timeout: 5000 }).should('exist');
+    cy.viewport(1280, 800);
+    loginAsClient('/home');
+    cy.get('nav', { timeout: 15000 }).should('exist');
+    // ThemeToggle button ima `data-testid="theme-toggle"` + `aria-label`
+    // sa "Trenutna tema: <label>". Provera kroz aria-label umesto kroz
+    // text-content jer Tailwind 4 cesto baci span sa whitespace formatting-om
+    // koji `cy.contains` ne hvata pouzdano.
+    cy.get('[data-testid="theme-toggle"]', { timeout: 15000 })
+      .scrollIntoView()
+      .should('have.attr', 'aria-label')
+      .and('match', /Svetlo|Tamno|Sistem/);
+    cy.get('[data-testid="theme-toggle"]').click({ force: true });
+    cy.wait(500);
+    // Posle klika, button jos uvek ima aria-label (drugaciji label).
+    cy.get('[data-testid="theme-toggle"]')
+      .should('have.attr', 'aria-label')
+      .and('match', /Svetlo|Tamno|Sistem/);
   });
 
   it('Balance visibility toggle na homepage', () => {
     loginAsClient();
     cy.visit('/home');
-    cy.wait(5000);
+    cy.wait(2000);
     // Look for eye icon button that toggles balance visibility
     cy.get('button[title*="balans"], button[title*="stanje"], button svg[class*="eye"], [data-cy="toggle-balance"]', { timeout: 10000 })
       .first().click({ force: true });
