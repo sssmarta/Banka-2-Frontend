@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Handshake } from 'lucide-react';
+import { Handshake, Upload } from 'lucide-react';
 import otcService from '@/services/otcService';
 import type { OtcListing } from '@/types/celina3';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { formatAmount } from '@/utils/formatters';
+import OtcSubHero from '@/components/otc/OtcSubHero';
 
 export default function OtcMyPublicPage() {
   const navigate = useNavigate();
@@ -31,21 +32,35 @@ export default function OtcMyPublicPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const totalQty = listings.reduce((s, l) => s + (l.publicQuantity ?? 0), 0);
+  const availableQty = listings.reduce((s, l) => s + (l.availablePublicQuantity ?? 0), 0);
+  const lockedQty = totalQty - availableQty;
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/otc')} className="gap-1">
-          <ArrowLeft className="h-4 w-4" /> Hub
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Moje javne akcije</h1>
-          <p className="text-sm text-muted-foreground">
-            Akcije koje ste stavili u javni rezim — drugi korisnici ih vide u "Pretrazi" tabu i mogu da
-            vam posalju OTC ponudu. Da povecate / smanjite / uklonite javnu kolicinu, idite na{' '}
-            <strong>Portfolio → kolona "Akcije"</strong>.
-          </p>
-        </div>
-      </div>
+    <div className="container mx-auto py-6 space-y-6 animate-fade-up">
+      <OtcSubHero
+        icon={Upload}
+        title="Moje javne akcije"
+        description="Hartije iz Portfolio-a koje si stavio u javni rezim. Drugi te vide u Pretrazi i mogu poslati ponudu."
+        gradientFrom="from-pink-500"
+        gradientTo="to-rose-600"
+        kpis={[
+          { label: 'Listinga', value: String(listings.length) },
+          { label: 'Ukupno javno', value: String(totalQty) },
+          { label: 'Raspolozivo', value: String(availableQty), tone: availableQty > 0 ? 'success' : 'default' },
+          { label: 'U ugovorima', value: String(lockedQty), tone: lockedQty > 0 ? 'warning' : 'default' },
+        ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-white/15 backdrop-blur-sm border-white/20 text-white hover:bg-white/25"
+            onClick={() => navigate('/portfolio')}
+          >
+            Otvori Portfolio
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>

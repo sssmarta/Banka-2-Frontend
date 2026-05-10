@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Zap } from 'lucide-react';
+import { ScrollText, Zap } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import otcService from '@/services/otcService';
@@ -16,6 +15,7 @@ import {
 import { asArray, formatAmount, getErrorMessage, getPreferredAccount } from '@/utils/formatters';
 import { OTC_CONTRACT_STATUS_LABELS as CONTRACT_STATUS_LABEL } from '@/utils/otcLabels';
 import OtcSourceFilterChip, { type OtcSource } from '@/components/otc/OtcSourceFilterChip';
+import OtcSubHero from '@/components/otc/OtcSubHero';
 import OtcInterBankContractsTab from './OtcInterBankContractsTab';
 
 const STATUS_OPTIONS: Array<{ value: OtcContractStatus | 'ALL'; label: string }> = [
@@ -33,7 +33,6 @@ const statusBadgeVariant = (status: string): 'success' | 'secondary' | 'destruct
 };
 
 export default function OtcContractsPage() {
-  const navigate = useNavigate();
   const { user, isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
   const [source, setSource] = useState<OtcSource>('all');
@@ -86,19 +85,28 @@ export default function OtcContractsPage() {
     }
   };
 
+  const activeCount = contracts.filter((c) => c.status === 'ACTIVE').length;
+  const exercisedCount = contracts.filter((c) => c.status === 'EXERCISED').length;
+  const expiredCount = contracts.filter((c) => c.status === 'EXPIRED').length;
+  const itmCount = contracts.filter(
+    (c) => c.status === 'ACTIVE' && user?.id === c.buyerId && c.currentPrice != null && c.currentPrice > c.strikePrice,
+  ).length;
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/otc')} className="gap-1">
-          <ArrowLeft className="h-4 w-4" /> Hub
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Sklopljeni ugovori</h1>
-          <p className="text-sm text-muted-foreground">
-            Opcioni ugovori sklopljeni iz prihvacenih ponuda. Kupac moze iskoristiti pre dospeca.
-          </p>
-        </div>
-      </div>
+    <div className="container mx-auto py-6 space-y-6 animate-fade-up">
+      <OtcSubHero
+        icon={ScrollText}
+        title="Sklopljeni ugovori"
+        description="Opcioni ugovori iz prihvacenih ponuda. Kupac moze iskoristiti pre settlement datuma."
+        gradientFrom="from-amber-500"
+        gradientTo="to-orange-600"
+        kpis={source === 'inter' ? undefined : [
+          { label: 'ACTIVE', value: String(activeCount), tone: activeCount > 0 ? 'success' : 'default' },
+          { label: 'ITM kao kupac', value: String(itmCount), tone: itmCount > 0 ? 'warning' : 'default' },
+          { label: 'EXERCISED', value: String(exercisedCount) },
+          { label: 'EXPIRED', value: String(expiredCount) },
+        ]}
+      />
 
       <div className="space-y-2">
         <OtcSourceFilterChip value={source} onChange={setSource} />

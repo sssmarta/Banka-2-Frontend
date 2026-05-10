@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Handshake, Search, TrendingUp } from 'lucide-react';
+import { Handshake, Search, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import otcService from '@/services/otcService';
 import type { OtcListing, CreateOtcOfferRequest } from '@/types/celina3';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table';
 import { addDaysISO, formatAmount, getErrorMessage } from '@/utils/formatters';
 import OtcSourceFilterChip, { type OtcSource } from '@/components/otc/OtcSourceFilterChip';
+import OtcSubHero from '@/components/otc/OtcSubHero';
 import OtcInterBankDiscoveryTab from './OtcInterBankDiscoveryTab';
 
 interface OfferFormState {
@@ -105,19 +106,24 @@ export default function OtcDiscoveryPage() {
     }
   };
 
+  const localCount = listings.length;
+  const totalLocalQty = listings.reduce((s, l) => s + (l.availablePublicQuantity ?? 0), 0);
+  const uniqueSellers = new Set(listings.map((l) => l.sellerName)).size;
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/otc')} className="gap-1">
-          <ArrowLeft className="h-4 w-4" /> Hub
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Pretrazi javne akcije</h1>
-          <p className="text-sm text-muted-foreground">
-            Vidi sta drugi nude i napravi ponudu (postajes kupac).
-          </p>
-        </div>
-      </div>
+    <div className="container mx-auto py-6 space-y-6 animate-fade-up">
+      <OtcSubHero
+        icon={Search}
+        title="Pretrazi javne akcije"
+        description="Pregled javnih ponuda iz nase i partnerskih banaka. Klikni Napravi ponudu da postanes kupac."
+        gradientFrom="from-indigo-500"
+        gradientTo="to-violet-600"
+        kpis={source === 'inter' ? undefined : [
+          { label: 'Listinga', value: String(localCount) },
+          { label: 'Komada javno', value: String(totalLocalQty) },
+          { label: 'Prodavaca', value: String(uniqueSellers) },
+        ]}
+      />
 
       <OtcSourceFilterChip value={source} onChange={setSource} />
 

@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Reply, X } from 'lucide-react';
+import { Check, Handshake, Reply, X } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import otcService from '@/services/otcService';
@@ -18,10 +17,10 @@ import {
 import { asArray, formatAmount, getErrorMessage, getPreferredAccount } from '@/utils/formatters';
 import { computeOfferDeviation } from './otcOfferUtils';
 import OtcSourceFilterChip, { type OtcSource } from '@/components/otc/OtcSourceFilterChip';
+import OtcSubHero from '@/components/otc/OtcSubHero';
 import OtcInterBankOffersTab from './OtcInterBankOffersTab';
 
 export default function OtcNegotiationsPage() {
-  const navigate = useNavigate();
   const { user, isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
   const [source, setSource] = useState<OtcSource>('all');
@@ -141,19 +140,25 @@ export default function OtcNegotiationsPage() {
     });
   };
 
+  const myTurnCount = activeOffers.filter((o) => o.myTurn).length;
+  const asBuyerCount = activeOffers.filter((o) => user?.id === o.buyerId).length;
+  const asSellerCount = activeOffers.filter((o) => user?.id === o.sellerId).length;
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/otc')} className="gap-1">
-          <ArrowLeft className="h-4 w-4" /> Hub
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Moji pregovori</h1>
-          <p className="text-sm text-muted-foreground">
-            Aktivne OTC ponude u kojima ste kupac ili prodavac.
-          </p>
-        </div>
-      </div>
+    <div className="container mx-auto py-6 space-y-6 animate-fade-up">
+      <OtcSubHero
+        icon={Handshake}
+        title="Moji pregovori"
+        description="Aktivne OTC ponude u kojima si kupac ili prodavac. Tvoj red znaci da druga strana ceka tvoj odgovor."
+        gradientFrom="from-emerald-500"
+        gradientTo="to-teal-600"
+        kpis={source === 'inter' ? undefined : [
+          { label: 'Aktivnih', value: String(activeOffers.length) },
+          { label: 'Tvoj red', value: String(myTurnCount), tone: myTurnCount > 0 ? 'warning' : 'default' },
+          { label: 'Kao kupac', value: String(asBuyerCount) },
+          { label: 'Kao prodavac', value: String(asSellerCount) },
+        ]}
+      />
 
       <OtcSourceFilterChip value={source} onChange={setSource} />
 

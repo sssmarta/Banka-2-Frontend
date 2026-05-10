@@ -29,6 +29,31 @@ vi.mock('@/services/otcService', () => ({
   },
 }));
 
+vi.mock('@/services/interbankOtcService', () => ({
+  default: {
+    listRemoteListings: vi.fn().mockResolvedValue([]),
+    listMyOffers: vi.fn().mockResolvedValue([]),
+    listMyContracts: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('@/context/AuthContext', async () => {
+  const actual = await vi.importActual<typeof import('@/context/AuthContext')>('@/context/AuthContext');
+  return {
+    ...actual,
+    useAuth: () => ({
+      user: { id: 1, email: 'test@example.com', firstName: 'Test', lastName: 'User', role: 'CLIENT' as const, permissions: [], isActive: true },
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+      hasPermission: () => false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+    }),
+  };
+});
+
 beforeEach(() => mockNavigate.mockClear());
 
 describe('OtcHubPage', () => {
