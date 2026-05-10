@@ -37,9 +37,11 @@ interface OfferFormState {
  */
 export default function OtcTrgovinaPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'local' | 'remote'>('local');
+  const [tab, setTab] = useState<'local' | 'remote' | 'mine'>('local');
   const [listings, setListings] = useState<OtcListing[]>([]);
+  const [myListings, setMyListings] = useState<OtcListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMine, setLoadingMine] = useState(true);
   const [search, setSearch] = useState('');
   const [submittingListingId, setSubmittingListingId] = useState<number | null>(null);
   const [openedListingId, setOpenedListingId] = useState<number | null>(null);
@@ -63,9 +65,22 @@ export default function OtcTrgovinaPage() {
     }
   }, []);
 
+  const refreshMine = useCallback(async () => {
+    setLoadingMine(true);
+    try {
+      const data = await otcService.listMyPublicListings();
+      setMyListings(data ?? []);
+    } catch {
+      setMyListings([]);
+    } finally {
+      setLoadingMine(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshMine();
+  }, [refresh, refreshMine]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return listings;
@@ -171,10 +186,16 @@ export default function OtcTrgovinaPage() {
         </AlertDescription>
       </Alert>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'local' | 'remote')} className="space-y-4">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'local' | 'remote' | 'mine')} className="space-y-4">
         <TabsList>
           <TabsTrigger value="local">Iz nase banke</TabsTrigger>
           <TabsTrigger value="remote">Iz drugih banaka</TabsTrigger>
+          <TabsTrigger value="mine" data-testid="otc-mine-tab">
+            Moje javne akcije
+            {myListings.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{myListings.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="local">
@@ -352,6 +373,91 @@ export default function OtcTrgovinaPage() {
 
         <TabsContent value="remote">
           <OtcInterBankDiscoveryTab />
+        </TabsContent>
+
+        <TabsContent value="mine">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+                Moje javne akcije ({myListings.length})
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Akcije koje ste stavili u javni rezim — drugi korisnici vide ovu listu na svojim
+                "Iz nase banke" tabovima i mogu da vam posalju OTC ponudu. Da povecate / smanjite /
+                uklonite javnu kolicinu, idite na <strong>Portfolio → kolona "Akcije"</strong>.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {loadingMine ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded bg-muted/50" />
+                  ))}
+                </div>
+              ) : myListings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                    <Handshake className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium">Nemate javnih akcija</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Postavite broj akcija u javni rezim na Portfolio stranici, pa ce se ovde
+                    prikazati lista.
+                  </p>
+                  <Button variant="outline" className="mt-4" onClick={() => navigate('/portfolio')}>
+                    Otvori Portfolio
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hartija</TableHead>
+                      <TableHead>Trenutna cena</TableHead>
+                      <TableHead>Javno (raspolozivo / ukupno)</TableHead>
+                      <TableHead className="text-right">Akcija</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {myListings.map((listing) => (
+                      <TableRow key={listing.portfolioId} data-testid={`my-listing-${listing.listingId}`}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{listing.listingTicker}</span>
+                            <span className="text-xs text-muted-foreground">{listing.listingName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {formatAmount(listing.currentPrice)} {listing.listingCurrency}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="success" className="font-mono">
+                            {listing.availablePublicQuantity} / {listing.publicQuantity}
+                          </Badge>
+                          {listing.availablePublicQuantity < listing.publicQuantity && (
+                            <span className="ml-2 text-[10px] text-muted-foreground">
+                              {listing.publicQuantity - listing.availablePublicQuantity} u aktivnim ugovorima
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate('/portfolio')}
+                            title="Otvori Portfolio za izmenu javne kolicine"
+                          >
+                            Izmeni
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

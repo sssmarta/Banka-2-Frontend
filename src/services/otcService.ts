@@ -22,6 +22,17 @@ const otcService = {
     return data;
   },
 
+  /**
+   * Moje sopstvene javne akcije — portfolio item-i koje sam stavio u javni
+   * rezim. Discovery (`/otc/listings`) namerno iskljucuje sopstvene akcije
+   * (user pravi ponude na tudje), pa ovaj endpoint daje vidljivost tome STA
+   * SAM JA objavio za druge.
+   */
+  listMyPublicListings: async (): Promise<OtcListing[]> => {
+    const { data } = await api.get<OtcListing[]>('/otc/listings/my');
+    return data;
+  },
+
   /** Moje aktivne pregovore (ACTIVE ponude u kojima sam buyer ili seller). */
   listMyActiveOffers: async (): Promise<OtcOffer[]> => {
     const { data } = await api.get<OtcOffer[]>('/otc/offers/active');
