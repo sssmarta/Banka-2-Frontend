@@ -628,7 +628,7 @@ export default function OtcOffersAndContractsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {c.status === 'ACTIVE' ? (
+                          {c.status === 'ACTIVE' && user?.id === c.buyerId ? (
                             <Button
                               size="sm"
                               disabled={busyContractId === c.id}
