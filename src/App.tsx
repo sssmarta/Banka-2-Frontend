@@ -53,8 +53,11 @@ import MarginAccountsPage from './pages/Margin/MarginAccountsPage';
 import SupervisorDashboardPage from './pages/Employee/SupervisorDashboardPage';
 
 // Celina 4 - OTC trgovina (intra-bank)
-import OtcTrgovinaPage from './pages/Otc/OtcTrgovinaPage';
-import OtcOffersAndContractsPage from './pages/Otc/OtcOffersAndContractsPage';
+import OtcHubPage from './pages/Otc/OtcHubPage';
+import OtcDiscoveryPage from './pages/Otc/OtcDiscoveryPage';
+import OtcNegotiationsPage from './pages/Otc/OtcNegotiationsPage';
+import OtcContractsPage from './pages/Otc/OtcContractsPage';
+import OtcMyPublicPage from './pages/Otc/OtcMyPublicPage';
 
 // Celina 4 - Investicioni fondovi
 import FundsDiscoveryPage from './pages/Funds/FundsDiscoveryPage';
@@ -149,8 +152,11 @@ export default function App() {
 
           {/* OTC trgovina (Celina 4 intra+inter-bank) — agenti nemaju pristup po §137-141 */}
           <Route element={<ProtectedRoute noAgentOnly />}>
-            <Route path="/otc" element={<OtcTrgovinaPage />} />
-            <Route path="/otc/offers" element={<OtcOffersAndContractsPage />} />
+            <Route path="/otc" element={<OtcHubPage />} />
+            <Route path="/otc/discovery" element={<OtcDiscoveryPage />} />
+            <Route path="/otc/pregovori" element={<OtcNegotiationsPage />} />
+            <Route path="/otc/ugovori" element={<OtcContractsPage />} />
+            <Route path="/otc/moje" element={<OtcMyPublicPage />} />
           </Route>
 
           {/* Investicioni fondovi (Celina 4) — discovery i details su za sve */}

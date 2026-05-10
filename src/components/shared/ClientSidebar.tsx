@@ -23,7 +23,6 @@ import {
   Globe,
   Landmark,
   Handshake,
-  ScrollText,
   PiggyBank,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -101,7 +100,6 @@ export default function ClientSidebar() {
       if (canAccessOtc) {
         base.push(
           { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
-          { label: 'OTC ponude i ugovori', path: '/otc/offers', icon: <ScrollText className="h-4 w-4" /> },
         );
       }
       base.push({ label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> });
