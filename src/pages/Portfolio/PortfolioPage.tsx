@@ -134,8 +134,12 @@ function PortfolioProfitChart({ items }: { items: PortfolioItem[] }) {
               shape={(props: { x?: number; y?: number; width?: number; height?: number; payload?: { profit: number } }) => {
                 const { x = 0, y = 0, width = 0, height = 0, payload } = props;
                 const fill = (payload?.profit ?? 0) >= 0 ? '#10b981' : '#ef4444';
+                const safeWidth = Math.max(0, width);
+                const safeHeight = Math.max(0, Math.abs(height));
+                const safeY = height < 0 ? y + height : y;
+                if (safeWidth === 0 || safeHeight === 0) return <g />;
                 return (
-                  <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
+                  <rect x={x} y={safeY} width={safeWidth} height={safeHeight} fill={fill} rx={4} ry={4} />
                 );
               }}
             />
