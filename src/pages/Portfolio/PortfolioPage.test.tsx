@@ -164,13 +164,19 @@ describe('PortfolioPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/orders/new?listingId=1&direction=SELL');
   });
 
-  it('renders public quantity input for STOCK items', async () => {
+  it('renders public quantity input + button for STOCK items', async () => {
     renderWithProviders(<PortfolioPage />);
 
     await waitFor(() => {
-      // Both the Input and Button have the same title, so expect 2 elements for the one STOCK item
-      const elements = screen.getAllByTitle(/Javne akcije su vidljive na OTC portalu/i);
-      expect(elements.length).toBe(2); // Input + Button for AAPL (STOCK)
+      // Posle UX fix-a (10.05.2026 vece-6): tooltip sad dinamicki govori sta dugme radi.
+      // Input + Button koriste isti dynamicni title. AAPL (STOCK) ima publicQuantity=10
+      // u mock-u, pa je dugme inicijalno disabled (input vrednost == persistedValue).
+      const stockSaveButton = screen.getByTestId('public-quantity-save-1');
+      expect(stockSaveButton).toBeInTheDocument();
+      expect(stockSaveButton).toHaveTextContent(/Učini javnim/i);
+      // Input takodje postoji
+      const stockInput = screen.getByTestId('public-quantity-input-1');
+      expect(stockInput).toBeInTheDocument();
     });
   });
 

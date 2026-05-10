@@ -407,7 +407,13 @@ export default function PortfolioPage() {
 
     try {
       await portfolioService.setPublicQuantity(item.id, parsed);
-      toast.success('Javna količina je uspešno sačuvana.');
+      if (parsed > 0) {
+        toast.success(
+          `${parsed} ${item.listingTicker} akcija je sad javno vidljivo na OTC portalu — drugi korisnici mogu da vam posalju ponudu.`,
+        );
+      } else {
+        toast.success(`${item.listingTicker} akcije su uklonjene iz javnog rezima.`);
+      }
       // Refetch kompletnog portfolija da garantujemo persist i sync sa backend-om
       await loadPortfolio(false);
     } catch {
@@ -600,6 +606,15 @@ export default function PortfolioPage() {
                 <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
                 Hartije u vlasnistvu
               </CardTitle>
+              {items.some((it) => it.listingType === 'STOCK') && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  💡 <strong>Javni režim:</strong> u koloni "Akcije" za STOCK hartije postoji input
+                  &nbsp;+&nbsp; dugme "Učini javnim". Postavite broj akcija koje hocete da budu vidljive
+                  na <strong>OTC portalu drugim korisnicima</strong> (oni mogu da vam posalju ponudu za njih).
+                  Vase javne akcije ne pojavljuju se u <em>vasem</em> OTC discovery-ju (samo vidite tude),
+                  vec gledate stanje pregovora u "Moje OTC ponude i ugovori".
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               {items.length === 0 ? (
@@ -707,33 +722,48 @@ export default function PortfolioPage() {
                                 Prodaj
                               </Button>
 
-                              {isStock && (
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max={Number(item.quantity) || 0}
-                                    value={publicQuantities[item.id] ?? '0'}
-                                    onChange={(e) => handlePublicQuantityChange(item.id, e)}
-                                    className="w-24"
-                                    title={`Javne akcije su vidljive na OTC portalu (max ${item.quantity})`}
-                                    data-testid={`public-quantity-input-${item.id}`}
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    disabled={
-                                      savingPublicId === item.id ||
-                                      Number(publicQuantities[item.id] ?? '0') > (Number(item.quantity) || 0)
-                                    }
-                                    onClick={() => handleSavePublicQuantity(item)}
-                                    title={`Javne akcije su vidljive na OTC portalu (max ${item.quantity})`}
-                                    data-testid={`public-quantity-save-${item.id}`}
-                                  >
-                                    {savingPublicId === item.id ? 'Čuvanje...' : 'Učini javnim'}
-                                  </Button>
-                                </div>
-                              )}
+                              {isStock && (() => {
+                                const currentInput = Number(publicQuantities[item.id] ?? '0');
+                                const persistedValue = Number(item.publicQuantity ?? 0);
+                                const isUnchanged = currentInput === persistedValue;
+                                const isOverMax = currentInput > (Number(item.quantity) || 0);
+                                const tooltip = isOverMax
+                                  ? `Maksimalno ${item.quantity} (vasa ukupna kolicina)`
+                                  : isUnchanged
+                                    ? `Vec sacuvano: ${persistedValue} javnih akcija. Promeni broj pa klikni dugme.`
+                                    : `Sacuvaj ${currentInput} javnih akcija — bice vidljivo drugim korisnicima na OTC discovery-ju.`;
+                                return (
+                                  <div className="flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={Number(item.quantity) || 0}
+                                        value={publicQuantities[item.id] ?? '0'}
+                                        onChange={(e) => handlePublicQuantityChange(item.id, e)}
+                                        className="w-24"
+                                        title={tooltip}
+                                        data-testid={`public-quantity-input-${item.id}`}
+                                      />
+                                      <Button
+                                        size="sm"
+                                        variant={isUnchanged ? 'outline' : 'secondary'}
+                                        disabled={savingPublicId === item.id || isOverMax || isUnchanged}
+                                        onClick={() => handleSavePublicQuantity(item)}
+                                        title={tooltip}
+                                        data-testid={`public-quantity-save-${item.id}`}
+                                      >
+                                        {savingPublicId === item.id ? 'Čuvanje...' : 'Učini javnim'}
+                                      </Button>
+                                    </div>
+                                    {persistedValue > 0 && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        Trenutno javno: {persistedValue}/{item.quantity}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               {canExercise && (
                                 <Button
                                   size="sm"
