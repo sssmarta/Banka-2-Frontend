@@ -509,25 +509,25 @@ describe('Live C4: CreateOrder Fund Selector', () => {
 //  FEATURE 7: OTC Inter-bank Discovery (Issue #67 / ekalajdzic13322)
 // ============================================================
 describe('Live C4: OTC Inter-bank Discovery', () => {
-  it('L25: Tab "Iz drugih banaka" na /otc prikazuje listu ili empty-state', () => {
-    loginClient('/otc');
-    cy.contains('h1', /OTC trgovina/i, { timeout: 15000 }).should('be.visible');
-    cy.get('[role="tab"]').contains(/Iz drugih banaka/i).click();
+  it('L25: Filter "Iz drugih banaka" na /otc/discovery prikazuje listu ili empty-state', () => {
+    loginClient('/otc/discovery');
+    cy.contains('h1', /Pretrazi javne akcije/i, { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Iz drugih banaka/i).click();
     // Bilo koji od: tabela sa listing-ovima, ili empty-state poruka, ili
     // generican Card naslov "Javno dostupne akcije" (deli isti CardTitle za
     // intra/inter-bank deo).
     cy.contains(/Javno dostupne akcije|Nema dostupnih ponuda|Trenutno nema|0\)/i, { timeout: 15000 }).should('exist');
   });
 
-  it('L26: Auto-refresh indikator vidljiv u Discovery tab-u', () => {
-    loginClient('/otc');
-    cy.get('[role="tab"]', { timeout: 15000 }).contains(/Iz drugih banaka/i).click();
+  it('L26: Auto-refresh indikator vidljiv u Discovery inter-bank rezimu', () => {
+    loginClient('/otc/discovery');
+    cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
     cy.get('[data-testid="auto-refresh-indicator"]', { timeout: 15000 }).should('exist');
   });
 
   it('L27: Osvezi dugme ponovo ucitava listu', () => {
-    loginClient('/otc');
-    cy.get('[role="tab"]', { timeout: 15000 }).contains(/Iz drugih banaka/i).click();
+    loginClient('/otc/discovery');
+    cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
     cy.contains('button', /Osvezi/i, { timeout: 15000 }).should('exist');
   });
 });
@@ -536,32 +536,34 @@ describe('Live C4: OTC Inter-bank Discovery', () => {
 // ============================================================
 //  FEATURE 8+9: OTC Inter-bank Offers + Contracts (Issue #68, #69 / ekalajdzic13322)
 //  BE wrapper rute /interbank/otc/offers/my* i /contracts/my* zive od 04.05.
+//  OTC Hub Redesign (Tasks 1-8, 10.05.2026): /otc/pregovori i /otc/ugovori odvojene rute
+//  + OtcSourceFilterChip ("Sve" / "Iz nase banke" / "Iz drugih banaka") umesto Radix tabs.
 // ============================================================
 describe('Live C4: OTC Inter-bank Offers + Contracts', () => {
-  it('L28: Stranica /otc/offers ucitava 4 tab-a ukljucujuci inter-bank', () => {
-    loginClient('/otc/offers');
-    cy.contains('h1', /OTC ponude i ugovori/i, { timeout: 15000 }).should('be.visible');
-    cy.get('[role="tab"]').should('have.length.at.least', 4);
-    cy.get('[role="tab"]').contains(/Aktivne ponude \(inter-bank\)/i).should('exist');
-    cy.get('[role="tab"]').contains(/Sklopljeni ugovori \(inter-bank\)/i).should('exist');
+  it('L28: Stranica /otc/pregovori ima OtcSourceFilterChip sa "Iz drugih banaka" opcijom', () => {
+    loginClient('/otc/pregovori');
+    cy.contains('h1', /Moji pregovori/i, { timeout: 15000 }).should('be.visible');
+    cy.contains('button', /Iz drugih banaka/i).should('exist');
+    cy.contains('button', /Iz nase banke/i).should('exist');
+    cy.contains('button', /^Sve$/i).should('exist');
   });
 
-  it('L29: Klik na "Aktivne ponude (inter-bank)" tab pokazuje listu ili empty-state', () => {
-    loginClient('/otc/offers');
-    cy.get('[role="tab"]', { timeout: 15000 }).contains(/Aktivne ponude \(inter-bank\)/i).click();
+  it('L29: Klik na "Iz drugih banaka" filter na /otc/pregovori pokazuje inter-bank ponude ili empty-state', () => {
+    loginClient('/otc/pregovori');
+    cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
     cy.contains(/Aktivne inter-bank ponude|Trenutno nemate aktivnih inter-bank|inter-bank/i, { timeout: 15000 }).should('exist');
   });
 
-  it('L30: Klik na "Sklopljeni ugovori (inter-bank)" tab pokazuje listu ili empty-state', () => {
-    loginClient('/otc/offers');
-    cy.get('[role="tab"]', { timeout: 15000 }).contains(/Sklopljeni ugovori \(inter-bank\)/i).click();
+  it('L30: Klik na "Iz drugih banaka" filter na /otc/ugovori pokazuje inter-bank ugovore ili empty-state', () => {
+    loginClient('/otc/ugovori');
+    cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
     cy.contains(/Inter-bank ugovori|Nemate sklopljenih|Nema|inter-bank/i, { timeout: 15000 }).should('exist');
   });
 
   it('L31: Inter-bank ugovori - filter po statusu (Sve / Aktivni / Iskoriscen)', () => {
-    loginClient('/otc/offers');
-    cy.get('[role="tab"]', { timeout: 15000 }).contains(/Sklopljeni ugovori \(inter-bank\)/i).click();
-    // Status filter tabovi su deo Tab-a unutar Tab-a; sub-tab moze biti i na intra-bank pa pretrazujemo siroko.
+    loginClient('/otc/ugovori');
+    cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
+    // Status filter dugmad zive unutar OtcInterBankContractsTab komponente (role="tab" ALL/ACTIVE/EXERCISED/EXPIRED).
     cy.contains(/Svi|Aktivni|Iskoriscen|Istekli|status/i, { timeout: 15000 }).should('exist');
   });
 

@@ -951,16 +951,16 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
   });
 
   const openRemoteTab = () => {
-    cy.visit('/otc', { onBeforeLoad: setupClientSession });
+    cy.visit('/otc/discovery', { onBeforeLoad: setupClientSession });
     cy.wait('@localOtcListings');
-    cy.contains('[role="tab"]', 'Iz drugih banaka').click();
+    cy.contains('button', 'Iz drugih banaka').click();
     cy.wait('@remoteOtcListings');
   };
 
-  it('S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
+  it('S36: Tab "Iz drugih banaka" na OtcDiscoveryPage', () => {
     openRemoteTab();
 
-    cy.contains('[role="tab"]', 'Iz drugih banaka').should('have.attr', 'aria-selected', 'true');
+    cy.contains('button', 'Iz drugih banaka').should('have.attr', 'aria-pressed', 'true');
     cy.contains('Javno dostupne akcije iz drugih banaka (2)').should('be.visible');
     cy.get('table tbody tr').should('have.length', mockOtcRemoteListings.length);
   });
@@ -1051,18 +1051,17 @@ describe('Mock C4: OTC Inter-bank Offers', () => {
   });
 
   const openRemoteOffersTab = () => {
-    cy.visit('/otc/offers', { onBeforeLoad: setupClientSession });
+    cy.visit('/otc/pregovori', { onBeforeLoad: setupClientSession });
     cy.wait('@localOtcOffers');
-    cy.wait('@localOtcContracts');
     cy.wait('@myAccounts');
-    cy.contains('[role="tab"]', 'Aktivne ponude (inter-bank)').click();
+    cy.contains('button', 'Iz drugih banaka').click();
     cy.wait('@remoteOtcOffers');
   };
 
   it('S40: Tab prikazuje moje aktivne inter-bank ponude', () => {
     openRemoteOffersTab();
 
-    cy.contains('[role="tab"]', 'Aktivne ponude (inter-bank)').should('have.attr', 'aria-selected', 'true');
+    cy.contains('button', 'Iz drugih banaka').should('have.attr', 'aria-pressed', 'true');
     cy.contains('AAPL').should('be.visible');
     cy.contains('MSFT').should('be.visible');
     cy.contains('NVDA').should('be.visible');
@@ -1105,8 +1104,10 @@ describe('Mock C4: OTC Inter-bank Offers', () => {
       expect(interception.request.query.accountId).to.equal('2');
     });
     cy.wait('@remoteOtcOffers');
-    cy.wait('@remoteOtcContracts');
-    cy.contains('[role="tab"]', 'Sklopljeni ugovori (inter-bank)').should('have.attr', 'aria-selected', 'true');
+    // Posle accept-a, offer se uklanja iz aktivnih ponuda. Filter chip ostaje
+    // na "Iz drugih banaka" (na /otc/pregovori). Sklopljeni ugovori sada zive
+    // na zasebnoj /otc/ugovori ruti — ne ocekujemo auto-switch.
+    cy.contains('button', 'Iz drugih banaka').should('have.attr', 'aria-pressed', 'true');
   });
 
   it('S44: Kontraponuda - PATCH /counter sa novim iznosima', () => {
@@ -1185,13 +1186,11 @@ describe('Mock C4: OTC Inter-bank Contracts', () => {
 
   const openRemoteContractsTab = () => {
     cy.clock(new Date('2026-04-25T09:00:00Z').getTime());
-    cy.visit('/otc/offers', { onBeforeLoad: setupClientSession });
-    cy.wait('@localOtcOffers');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
     cy.wait('@localOtcContracts');
     cy.wait('@myAccounts');
-    cy.contains('button', 'Sklopljeni ugovori (inter-bank)').click();
+    cy.contains('button', 'Iz drugih banaka').click();
     cy.wait('@remoteContracts');
-    cy.wait('@myAccounts');
   };
 
   it('S46: Tab prikazuje inter-bank ugovore sa filtr po statusu', () => {
@@ -2179,8 +2178,18 @@ describe('Route guards: noAgentOnly redirects agent on OTC URLs', () => {
     cy.url().should('include', '/403');
   });
 
-  it('agent na /otc/offers dobija 403', () => {
-    cy.visit('/otc/offers', { onBeforeLoad: (win) => setupAgentSession(win) });
+  it('agent na /otc/pregovori dobija 403', () => {
+    cy.visit('/otc/pregovori', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /otc/ugovori dobija 403', () => {
+    cy.visit('/otc/ugovori', { onBeforeLoad: (win) => setupAgentSession(win) });
+    cy.url().should('include', '/403');
+  });
+
+  it('agent na /otc/discovery dobija 403', () => {
+    cy.visit('/otc/discovery', { onBeforeLoad: (win) => setupAgentSession(win) });
     cy.url().should('include', '/403');
   });
 
@@ -2252,13 +2261,13 @@ describe('OTC inter-bank Discovery auto-polling indicator', () => {
   });
 
   it('prikazuje Auto 30s indikator i Osvezi dugme', () => {
-    // auto-refresh-indicator se nalazi u OtcInterBankDiscoveryTab (na URL `/otc`),
-    // a ne u OtcInterBankOffersTab (`/otc/offers`). Visit ide na /otc i prebacuje
-    // se na inter-bank discovery tab.
-    cy.visit('/otc', { onBeforeLoad: (win) => setupClientSession(win) });
-    cy.get('[role="tab"]').contains(/Iz drugih banaka/i).click();
+    // auto-refresh-indicator se nalazi u OtcInterBankDiscoveryTab. Po novoj OTC
+    // Hub strukturi (Tasks 1-8), Discovery je na /otc/discovery, gde se inter-bank
+    // mod aktivira preko OtcSourceFilterChip "Iz drugih banaka" dugmeta.
+    cy.visit('/otc/discovery', { onBeforeLoad: (win) => setupClientSession(win) });
+    cy.contains('button', /Iz drugih banaka/i).click();
     // Cekaj da se inter-bank listings fetch zavrsi pre nego sto trazimo
-    // indicator — Radix Tabs lazy-renderuje TabsContent posle klika.
+    // indicator — komponenta se renderuje uslovno na osnovu source state-a.
     cy.wait('@interbankListings');
     cy.get('[data-testid="auto-refresh-indicator"]', { timeout: 10000 }).should('exist');
     cy.contains('button', /Osvezi/i).should('exist');
@@ -2269,13 +2278,14 @@ describe('OTC inter-bank Discovery auto-polling indicator', () => {
 //  OTC TAB BADGE COUNTS
 // ============================================================
 
-describe('OTC tab badge counts (n aktivnih)', () => {
+describe('OTC Hub kartice (n aktivnih)', () => {
   beforeEach(() => {
     // Spec note: otcService.listMyActiveOffers() poziva GET /otc/offers/active,
     // a otcService.listMyContracts(filter) poziva GET /otc/contracts (NE /my).
     // Intercept matchers moraju da pokriju oba URL-a inace mock se ne primenjuje
-    // i FE radi pravi network call koji u test okruzenju vraca 401, contracts
-    // state ostaje [], badge nije renderovan, test fail-uje na cy.get timeout.
+    // i FE radi pravi network call koji u test okruzenju vraca 401, Hub stats
+    // ostaju 0, test fail-uje na cy.get timeout.
+    cy.intercept('GET', '**/api/otc/listings*', { statusCode: 200, body: [] }).as('localListings');
     cy.intercept('GET', '**/api/otc/offers/active*', {
       statusCode: 200,
       body: [
@@ -2291,17 +2301,17 @@ describe('OTC tab badge counts (n aktivnih)', () => {
         { id: 13, status: 'EXERCISED', listingTicker: 'MSFT', quantity: 3, strikePrice: 400, premium: 30, settlementDate: '2026-06-30' },
       ],
     }).as('localContracts');
+    cy.intercept('GET', '**/api/otc/my-public*', { statusCode: 200, body: [] }).as('myPublic');
     cy.intercept('GET', '**/api/interbank/otc/listings*', { statusCode: 200, body: [] });
     cy.intercept('GET', '**/api/interbank/otc/offers/my*', { statusCode: 200, body: [] });
     cy.intercept('GET', '**/api/interbank/otc/contracts/my*', { statusCode: 200, body: [] });
     cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
   });
 
-  it('contracts-local tab pokazuje count 2 ACTIVE ugovora (3-1 EXERCISED)', () => {
-    cy.visit('/otc/offers', { onBeforeLoad: (win) => setupClientSession(win) });
-    // Cekamo da se contracts ucitaju pre nego sto trazimo Badge — bez ovog
-    // wait-a get bi gadao TabsTrigger prazan (bez Badge-a) i timeout.
+  it('hub-contracts kartica pokazuje count 2 ACTIVE ugovora (3-1 EXERCISED)', () => {
+    cy.visit('/otc', { onBeforeLoad: (win) => setupClientSession(win) });
+    // Cekamo da se sve Hub stat fetch-evi zavrse pre nego sto trazimo broj.
     cy.wait('@localContracts');
-    cy.get('[data-testid="count-contracts-local"]', { timeout: 10000 }).should('contain', '2');
+    cy.get('[data-testid="hub-contracts"]', { timeout: 10000 }).should('contain', '2');
   });
 });
