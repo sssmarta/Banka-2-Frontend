@@ -310,6 +310,47 @@ export default function HomePage() {
   const totalRSD = useMemo(() => accounts.filter(a => a.currency === 'RSD').reduce((s, a) => s + (a.balance ?? 0), 0), [accounts]);
   const totalFX = useMemo(() => accounts.filter(a => a.currency !== 'RSD').length, [accounts]);
 
+  // Net worth: sve account-e konvertujemo u RSD koristeci exchangeRates (middleRate = RSD per 1 unit)
+  const netWorth = useMemo(() => {
+    if (accounts.length === 0) return 0;
+    const rateMap = new Map<string, number>();
+    exchangeRates.forEach(r => {
+      const rsdPerUnit = r.middleRate && r.middleRate > 0 ? (1 / r.middleRate) : 0;
+      if (rsdPerUnit > 0) rateMap.set(r.currency, rsdPerUnit);
+    });
+    return accounts.reduce((sum, a) => {
+      if (a.currency === 'RSD') return sum + (a.balance ?? 0);
+      const rate = rateMap.get(a.currency) ?? 0;
+      return sum + (a.balance ?? 0) * rate;
+    }, 0);
+  }, [accounts, exchangeRates]);
+
+  // Mesecna analitika iz nedavnih transakcija (samo poslednje 6, indikativno)
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    const myAccountNumbers = new Set(accounts.map(a => a.accountNumber));
+    const monthly = transactions.filter(tx => {
+      const d = new Date(tx.createdAt);
+      return !Number.isNaN(d.getTime()) && d.getMonth() === month && d.getFullYear() === year;
+    });
+    let income = 0;
+    let expense = 0;
+    monthly.forEach(tx => {
+      const isOut = myAccountNumbers.has(tx.fromAccountNumber);
+      if (isOut) expense += (tx.amount ?? 0);
+      else income += (tx.amount ?? 0);
+    });
+    const savings = income - expense;
+    const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+    return {
+      income, expense, savings, savingsRate,
+      txCount: monthly.length,
+      totalTxCount: transactions.length,
+    };
+  }, [transactions, accounts]);
+
   // Chart data (memoized to avoid regenerating random data on every render)
   const balanceHistory = useMemo(() => generateBalanceHistory(totalRSD || 250000, chartPeriod), [totalRSD, chartPeriod]);
 
@@ -357,46 +398,100 @@ export default function HomePage() {
           <div className="absolute bottom-0 left-1/3 -mb-16 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
           <div className="absolute top-1/2 right-1/4 h-32 w-32 rounded-full bg-purple-400/10 blur-2xl" />
 
-          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-            <div>
-              <p className="text-indigo-200 text-sm font-medium tracking-wide uppercase">{greeting}</p>
-              <h1 className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight">
-                {user?.firstName ?? 'Korisnice'}
-              </h1>
-              <div className="mt-5 flex items-center gap-3">
-                <p className="text-indigo-200 text-sm">Ukupno stanje</p>
-                <button onClick={() => setBalanceVisible(!balanceVisible)} className="text-indigo-300 hover:text-white transition-colors" aria-label="Prikazi/sakrij stanje">
-                  {balanceVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                </button>
+          <div className="relative grid gap-6 lg:grid-cols-5">
+            {/* Left: greeting + total balance + action pills */}
+            <div className="lg:col-span-2 space-y-4">
+              <div>
+                <p className="text-indigo-200 text-sm font-medium tracking-wide uppercase">{greeting}</p>
+                <h1 className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight">
+                  {user?.firstName ?? 'Korisnice'}
+                </h1>
               </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-4xl sm:text-5xl font-bold font-mono tabular-nums tracking-tight">
-                  {balanceVisible ? formatAmount(totalRSD) : '\u2022\u2022\u2022\u2022\u2022\u2022'}
-                </span>
-                <span className="text-xl font-semibold text-indigo-200">RSD</span>
+              <div>
+                <div className="flex items-center gap-3">
+                  <p className="text-indigo-200 text-sm">Ukupno stanje</p>
+                  <button type="button" onClick={() => setBalanceVisible(!balanceVisible)} className="text-indigo-300 hover:text-white transition-colors" aria-label="Prikazi/sakrij stanje">
+                    {balanceVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-4xl sm:text-5xl font-bold font-mono tabular-nums tracking-tight">
+                    {balanceVisible ? formatAmount(totalRSD) : '\u2022\u2022\u2022\u2022\u2022\u2022'}
+                  </span>
+                  <span className="text-xl font-semibold text-indigo-200">RSD</span>
+                </div>
+                {totalFX > 0 && (
+                  <p className="mt-1 text-sm text-indigo-200">
+                    + {totalFX} devizn{totalFX === 1 ? 'i' : 'a'} racun{totalFX === 1 ? '' : 'a'}
+                  </p>
+                )}
               </div>
-              {totalFX > 0 && (
-                <p className="mt-2 text-sm text-indigo-200">
-                  + {totalFX} devizn{totalFX === 1 ? 'i' : 'a'} racun{totalFX === 1 ? '' : 'a'}
-                </p>
-              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {[
+                  { label: 'Novo placanje', icon: <Send className="h-3.5 w-3.5" />, path: '/payments/new' },
+                  { label: 'Transfer', icon: <ArrowRightLeft className="h-3.5 w-3.5" />, path: '/transfers' },
+                  { label: 'Menjacnica', icon: <Banknote className="h-3.5 w-3.5" />, path: '/exchange' },
+                ].map(a => (
+                  <button
+                    type="button"
+                    key={a.path}
+                    onClick={() => navigate(a.path)}
+                    className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-105"
+                  >
+                    {a.icon}{a.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Quick action pills */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Novo placanje', icon: <Send className="h-3.5 w-3.5" />, path: '/payments/new' },
-                { label: 'Transfer', icon: <ArrowRightLeft className="h-3.5 w-3.5" />, path: '/transfers' },
-                { label: 'Menjacnica', icon: <Banknote className="h-3.5 w-3.5" />, path: '/exchange' },
-              ].map(a => (
-                <button
-                  key={a.path}
-                  onClick={() => navigate(a.path)}
-                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-105"
-                >
-                  {a.icon}{a.label}
-                </button>
-              ))}
+            {/* Right: 4 KPI chips embedded into hero */}
+            <div className="lg:col-span-3 grid grid-cols-2 gap-3 content-start">
+              <div className="rounded-2xl bg-white/10 backdrop-blur-sm px-4 py-3 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">Neto vrednost</span>
+                  <Wallet className="h-3.5 w-3.5 text-indigo-200" />
+                </div>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums">
+                  {balanceVisible ? formatAmount(netWorth, 0) : '\u2022\u2022\u2022\u2022\u2022'}
+                </div>
+                <div className="text-[10px] text-indigo-200">RSD \u00b7 {accounts.length} {accounts.length === 1 ? 'racun' : 'racuna'}</div>
+              </div>
+
+              <div className="rounded-2xl bg-emerald-400/15 backdrop-blur-sm px-4 py-3 border border-emerald-300/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-100">Prihod mesec</span>
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-200" />
+                </div>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums text-emerald-100">
+                  +{formatAmount(monthlyStats.income, 0)}
+                </div>
+                <div className="text-[10px] text-emerald-200/80">RSD \u00b7 {monthlyStats.txCount} tx</div>
+              </div>
+
+              <div className="rounded-2xl bg-rose-400/15 backdrop-blur-sm px-4 py-3 border border-rose-300/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-100">Rashod mesec</span>
+                  <TrendingDown className="h-3.5 w-3.5 text-rose-200" />
+                </div>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums text-rose-100">
+                  -{formatAmount(monthlyStats.expense, 0)}
+                </div>
+                <div className="text-[10px] text-rose-200/80">RSD ukupno</div>
+              </div>
+
+              <div className={`rounded-2xl backdrop-blur-sm px-4 py-3 border ${monthlyStats.savingsRate >= 0 ? 'bg-amber-400/15 border-amber-300/20' : 'bg-white/10 border-white/10'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${monthlyStats.savingsRate >= 0 ? 'text-amber-100' : 'text-indigo-200'}`}>Stopa stednje</span>
+                  <PiggyBank className={`h-3.5 w-3.5 ${monthlyStats.savingsRate >= 0 ? 'text-amber-200' : 'text-indigo-200'}`} />
+                </div>
+                <div className={`mt-1 text-xl font-bold font-mono tabular-nums ${monthlyStats.savingsRate >= 0 ? 'text-amber-100' : 'text-white'}`}>
+                  {monthlyStats.savingsRate >= 0 ? '+' : ''}{monthlyStats.savingsRate.toFixed(1)}%
+                </div>
+                <div className={`text-[10px] ${monthlyStats.savingsRate >= 0 ? 'text-amber-200/80' : 'text-indigo-200'}`}>
+                  {monthlyStats.savings >= 0 ? 'Ustedjeno ' : 'Manjak '}
+                  {formatAmount(Math.abs(monthlyStats.savings), 0)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -555,7 +650,6 @@ export default function HomePage() {
             { label: 'Investicioni fondovi', sub: 'Fondovi i ulaganja', icon: <Landmark className="h-6 w-6" />, path: '/funds', color: 'from-emerald-500 to-teal-500' },
             { label: 'Primaoci', sub: 'Sacuvani kontakti', icon: <BookUser className="h-6 w-6" />, path: '/payments/recipients', color: 'from-purple-500 to-violet-500' },
             { label: 'Istorija', sub: 'Sve transakcije', icon: <Clock className="h-6 w-6" />, path: '/payments/history', color: 'from-slate-500 to-gray-600' },
-            { label: 'Racuni', sub: 'Pregled stanja', icon: <Wallet className="h-6 w-6" />, path: '/accounts', color: 'from-teal-500 to-cyan-600' },
           ].map(a => (
             <Card
               key={a.path}
@@ -576,61 +670,62 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick Payment - Saved Recipients */}
-      {!loading && recipients.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Send className="h-5 w-5 text-indigo-500" />
-              Brzo placanje
-            </h2>
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/payments/recipients')}>
-              Svi primaoci <ChevronRight className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
-            {recipients.map((recipient) => {
-              const initials = recipient.name
-                .split(/\s+/)
-                .map(w => w.charAt(0).toUpperCase())
-                .slice(0, 2)
-                .join('');
-              return (
-                <button
-                  key={recipient.id}
-                  type="button"
-                  onClick={() => navigate(`/payments/new?to=${encodeURIComponent(recipient.accountNumber)}&recipient=${encodeURIComponent(recipient.name)}`)}
-                  className="flex-shrink-0 group flex flex-col items-center gap-2.5 rounded-2xl border bg-card p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/30"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform duration-300 group-hover:scale-110">
-                    {initials || '?'}
-                  </div>
-                  <div className="text-center min-w-0 w-full">
-                    <p className="text-sm font-semibold truncate">{recipient.name}</p>
-                    <p className="text-[11px] text-muted-foreground font-mono truncate">{recipient.accountNumber}</p>
-                  </div>
-                </button>
-              );
-            })}
-            {/* Add new recipient button */}
-            <button
-              type="button"
-              onClick={() => navigate('/payments/recipients')}
-              className="flex-shrink-0 group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-muted-foreground/30 bg-muted/20 p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/40 hover:bg-muted/40"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground transition-all duration-300 group-hover:bg-indigo-500/10 group-hover:text-indigo-500">
-                <Plus className="h-5 w-5" />
-              </div>
-              <p className="text-sm font-medium text-muted-foreground group-hover:text-indigo-500 transition-colors">Dodaj</p>
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* Two columns: Transactions + Exchange rates */}
+      {/* Two columns: (Brzo placanje + Transakcije) | Kursna lista */}
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Recent Transactions - wider */}
-        <section className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
+          {/* Quick Payment - Saved Recipients (top of left col) */}
+          {!loading && recipients.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Send className="h-5 w-5 text-indigo-500" />
+                  Brzo placanje
+                </h2>
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/payments/recipients')}>
+                  Svi primaoci <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
+                {recipients.map((recipient) => {
+                  const initials = recipient.name
+                    .split(/\s+/)
+                    .map(w => w.charAt(0).toUpperCase())
+                    .slice(0, 2)
+                    .join('');
+                  return (
+                    <button
+                      key={recipient.id}
+                      type="button"
+                      onClick={() => navigate(`/payments/new?to=${encodeURIComponent(recipient.accountNumber)}&recipient=${encodeURIComponent(recipient.name)}`)}
+                      className="flex-shrink-0 group flex flex-col items-center gap-2.5 rounded-2xl border bg-card p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/30"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform duration-300 group-hover:scale-110">
+                        {initials || '?'}
+                      </div>
+                      <div className="text-center min-w-0 w-full">
+                        <p className="text-sm font-semibold truncate">{recipient.name}</p>
+                        <p className="text-[11px] text-muted-foreground font-mono truncate">{recipient.accountNumber}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+                {/* Add new recipient button */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/payments/recipients')}
+                  className="flex-shrink-0 group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-muted-foreground/30 bg-muted/20 p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/40 hover:bg-muted/40"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground transition-all duration-300 group-hover:bg-indigo-500/10 group-hover:text-indigo-500">
+                    <Plus className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground group-hover:text-indigo-500 transition-colors">Dodaj</p>
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* Recent Transactions - wider */}
+          <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Clock className="h-5 w-5 text-indigo-500" />
@@ -702,7 +797,8 @@ export default function HomePage() {
               })
             )}
           </div>
-        </section>
+          </section>
+        </div>
 
         {/* Exchange Rates - scrolling currency cards */}
         <section className="lg:col-span-2">
@@ -784,6 +880,11 @@ export default function HomePage() {
   const pendingOrders = recentOrders.filter(o => o.status === 'PENDING').length;
   const approvedOrders = recentOrders.filter(o => o.status === 'APPROVED').length;
   const doneOrders = recentOrders.filter(o => o.status === 'DONE' || o.isDone).length;
+  const profitROI = portfolioValue > 0 && portfolioValue !== portfolioProfit
+    ? (portfolioProfit / (portfolioValue - portfolioProfit)) * 100
+    : 0;
+  const buyOrders = recentOrders.filter(o => o.direction === 'BUY').length;
+  const sellOrders = recentOrders.filter(o => o.direction === 'SELL').length;
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -793,40 +894,78 @@ export default function HomePage() {
         <div className="absolute top-0 right-0 -mt-20 -mr-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
         <div className="absolute bottom-0 left-1/4 -mb-20 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
 
-        <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-medium text-indigo-300 uppercase tracking-widest">
-                {isAdmin ? 'Admin panel' : isSupervisor ? 'Supervizor panel' : isAgent ? 'Agent panel' : 'Employee portal'}
-              </span>
+        <div className="relative space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-medium text-indigo-300 uppercase tracking-widest">
+                  {isAdmin ? 'Admin panel' : isSupervisor ? 'Supervizor panel' : isAgent ? 'Agent panel' : 'Employee portal'}
+                </span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                {greeting}, {user?.firstName ?? 'Korisnice'}
+              </h1>
+              <p className="mt-2 text-indigo-300 max-w-lg">
+                {isAdmin
+                  ? 'Upravljajte zaposlenima, klijentima, kreditima i pratite rad banke.'
+                  : isSupervisor
+                  ? 'Nadgledajte naloge, upravljajte aktuarima i pratite trgovinu.'
+                  : 'Pratite naloge i trgovinu na berzi.'}
+              </p>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-              {greeting}, {user?.firstName ?? 'Korisnice'}
-            </h1>
-            <p className="mt-2 text-indigo-300 max-w-lg">
-              {isAdmin
-                ? 'Upravljajte zaposlenima, klijentima, kreditima i pratite rad banke.'
-                : isSupervisor
-                ? 'Nadgledajte naloge, upravljajte aktuarima i pratite trgovinu.'
-                : 'Pratite naloge i trgovinu na berzi.'}
-            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Berza', icon: <TrendingUp className="h-3.5 w-3.5" />, path: '/securities' },
+                { label: 'Portfolio', icon: <Briefcase className="h-3.5 w-3.5" />, path: '/portfolio' },
+                { label: 'Novi nalog', icon: <Plus className="h-3.5 w-3.5" />, path: '/orders/new' },
+              ].map(a => (
+                <button
+                  key={a.path}
+                  type="button"
+                  onClick={() => navigate(a.path)}
+                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-105"
+                >
+                  {a.icon}{a.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Berza', icon: <TrendingUp className="h-3.5 w-3.5" />, path: '/securities' },
-              { label: 'Portfolio', icon: <Briefcase className="h-3.5 w-3.5" />, path: '/portfolio' },
-              { label: 'Novi nalog', icon: <Plus className="h-3.5 w-3.5" />, path: '/orders/new' },
-            ].map(a => (
-              <button
-                key={a.path}
-                type="button"
-                onClick={() => navigate(a.path)}
-                className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-105"
-              >
-                {a.icon}{a.label}
-              </button>
-            ))}
+
+          {/* Hero KPI strip */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm px-4 py-3 border border-white/10">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">Portfolio vrednost</div>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums">
+                {employeeLoading ? '—' : formatAmount(portfolioValue, 0)}
+              </div>
+              <div className="text-[10px] text-indigo-200">USD</div>
+            </div>
+            <div className={`rounded-2xl backdrop-blur-sm px-4 py-3 border ${portfolioProfit >= 0 ? 'bg-emerald-400/15 border-emerald-300/30' : 'bg-rose-400/15 border-rose-300/30'}`}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">ROI (P/L)</div>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums flex items-center gap-1">
+                {employeeLoading ? '—' : `${profitROI >= 0 ? '+' : ''}${profitROI.toFixed(1)}%`}
+                {portfolioProfit >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+              </div>
+              <div className="text-[10px] text-indigo-200">{portfolioProfit >= 0 ? '+' : ''}{formatAmount(portfolioProfit, 0)} USD</div>
+            </div>
+            <div className={`rounded-2xl backdrop-blur-sm px-4 py-3 border ${pendingOrders > 0 ? 'bg-amber-400/20 border-amber-300/30' : 'bg-white/10 border-white/10'}`}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">Na cekanju</div>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums flex items-center gap-1">
+                {employeeLoading ? '—' : pendingOrders}
+                {pendingOrders > 0 && (isSupervisor || isAdmin) && <Clock className="h-4 w-4 text-amber-200" />}
+              </div>
+              <div className="text-[10px] text-indigo-200">naloga · {approvedOrders} aktivnih</div>
+            </div>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm px-4 py-3 border border-white/10">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">Trgovina (sample)</div>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums flex items-center gap-2">
+                <span className="text-emerald-300">{buyOrders}B</span>
+                <span className="text-white/40">/</span>
+                <span className="text-rose-300">{sellOrders}S</span>
+              </div>
+              <div className="text-[10px] text-indigo-200">{doneOrders} zavrsenih</div>
+            </div>
           </div>
         </div>
       </div>
