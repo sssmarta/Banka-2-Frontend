@@ -137,14 +137,27 @@ export default function OtcOffersAndContractsPage() {
   }, [isEmployee]);
 
   const handleAccept = async (offer: OtcOffer) => {
-    const buyerAccount = getPreferredAccount(accounts, offer.listingCurrency);
-    if (!buyerAccount) {
-      toast.error('Nemate nijedan aktivan racun za placanje premije.');
-      return;
-    }
     setBusyOfferId(offer.id);
     try {
-      await otcService.acceptOffer(offer.id, buyerAccount.id);
+      // Premium uvek placa kupac, pa BE acceptOffer ocekuje racun KUPCA iz
+      // ponude (ne trenutnog korisnika). Ako trenutni korisnik prihvata kao
+      // prodavac, FE ne sme da posalje svoj accountId — BE ce auto-resolve
+      // kupcev default racun preko findDefaultAccount(buyerId, ...).
+      // Bag prijavljen 10.05.2026: FE je slao current user's account, BE je
+      // verifyAccountOwnership(account, offer.buyerId, ...) odbio sa
+      // "Racun X ne pripada korisniku".
+      const currentIsBuyer = user?.id === offer.buyerId;
+      let buyerAccountId: number | undefined;
+      if (currentIsBuyer) {
+        const preferred = getPreferredAccount(accounts, offer.listingCurrency);
+        if (!preferred) {
+          toast.error('Nemate nijedan aktivan racun za placanje premije.');
+          setBusyOfferId(null);
+          return;
+        }
+        buyerAccountId = preferred.id;
+      }
+      await otcService.acceptOffer(offer.id, buyerAccountId);
       toast.success('Ponuda je prihvacena, opcioni ugovor je sklopljen.');
       await Promise.all([reloadOffers(), reloadContracts()]);
       setTab('contracts-local');
