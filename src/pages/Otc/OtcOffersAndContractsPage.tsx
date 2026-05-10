@@ -385,9 +385,19 @@ export default function OtcOffersAndContractsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">
-                            <div>Kupac: {offer.buyerName}</div>
-                            <div className="text-muted-foreground">Prodavac: {offer.sellerName}</div>
+                          <div className="text-sm space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span>Kupac: {offer.buyerName}</span>
+                              {user?.id === offer.buyerId && (
+                                <Badge variant="info" className="text-[10px] px-1 py-0 h-4">VI</Badge>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground flex items-center gap-1.5">
+                              <span>Prodavac: {offer.sellerName}</span>
+                              {user?.id === offer.sellerId && (
+                                <Badge variant="info" className="text-[10px] px-1 py-0 h-4">VI</Badge>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="font-mono">{offer.quantity}</TableCell>
@@ -418,9 +428,13 @@ export default function OtcOffersAndContractsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={offer.myTurn ? 'warning' : 'secondary'}>
-                            {offer.myTurn ? 'Moj red' : 'Ceka drugu stranu'}
-                          </Badge>
+                          {offer.myTurn ? (
+                            <Badge variant="warning">Moj red</Badge>
+                          ) : (
+                            <Badge variant="secondary" title={`Ceka da ${offer.waitingOnUserId === offer.buyerId ? offer.buyerName : offer.sellerName} odgovori`}>
+                              Ceka {offer.waitingOnUserId === offer.buyerId ? 'kupca' : 'prodavca'}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1 flex-wrap">

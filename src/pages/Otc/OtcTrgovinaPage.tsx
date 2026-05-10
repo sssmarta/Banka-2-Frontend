@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Handshake, Search, TrendingUp } from 'lucide-react';
+import { Handshake, Search, TrendingUp, ScrollText, ArrowRight } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import otcService from '@/services/otcService';
 import type { OtcListing, CreateOtcOfferRequest } from '@/types/celina3';
@@ -126,7 +126,7 @@ export default function OtcTrgovinaPage() {
     setSubmittingListingId(listing.listingId);
     try {
       await otcService.createOffer(payload);
-      toast.success('Ponuda je poslata prodavcu.');
+      toast.success('Ponuda poslata prodavcu. Pratite je u "Moje OTC ponude" — sad ceka da prodavac odgovori.');
       setOpenedListingId(null);
       navigate('/otc/offers');
     } catch (err) {
@@ -138,23 +138,36 @@ export default function OtcTrgovinaPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
-          <Handshake className="h-5 w-5" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Handshake className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">OTC trgovina</h1>
+            <p className="text-sm text-muted-foreground">
+              Direktna kupoprodaja akcija unutar nase banke i kroz partnerske banke — bez provizije berze
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">OTC trgovina</h1>
-          <p className="text-sm text-muted-foreground">
-            Direktna kupoprodaja akcija unutar nase banke i kroz partnerske banke — bez provizije berze
-          </p>
-        </div>
+        <Button
+          variant="outline"
+          onClick={() => navigate('/otc/offers')}
+          className="gap-2"
+          data-testid="otc-my-offers-cta"
+        >
+          <ScrollText className="h-4 w-4" />
+          Moje OTC ponude i ugovori
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
       <Alert>
         <AlertDescription className="text-sm">
           <strong>Kako funkcionise:</strong> na tabu "Iz nase banke" vidite javne OTC ponude korisnika iz nase
-          banke, dok tab "Iz drugih banaka" prikazuje ponude partnerskih banaka. U oba slucaja kupac pravi ponudu
-          (kolicina, cena po akciji, premija i datum dospeca), a druga strana je prihvata ili salje kontraponudu.
+          banke, dok tab "Iz drugih banaka" prikazuje ponude partnerskih banaka. Kad pritisnete <em>"Napravi ponudu"</em>,
+          <strong> vi automatski postajete KUPAC</strong> (placacete premiju), a vlasnik akcija je prodavac. Druga strana
+          dobija ponudu i moze da je prihvati, salje kontraponudu, ili otkaze. Status pratite u <em>"Moje OTC ponude i ugovori"</em>.
         </AlertDescription>
       </Alert>
 
