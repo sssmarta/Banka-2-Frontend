@@ -32,9 +32,21 @@ const statusBadgeVariant = (status: string): 'success' | 'secondary' | 'destruct
   return 'destructive';
 };
 
+const normalizeName = (s: string | undefined) =>
+  // NFD razbija "ć" → "c" + U+0301 i sl., pa skidamo sve combining diacritice (U+0300–U+036F).
+  (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
 export default function OtcContractsPage() {
   const { user, isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
+  // Klijent JWT nema id claim, a clientService.getAll je cesto 403 za CLIENT-a,
+  // pa se na user.id ne mozemo osloniti. BE vec filtrira /otc/contracts na "moje",
+  // pa unutar tog skupa identitet razresavamo i preko normalizovanog imena.
+  const myFullName = normalizeName(`${user?.firstName ?? ''} ${user?.lastName ?? ''}`);
+  const isMe = (partyId: number, partyName: string) =>
+    (user?.id ?? 0) > 0 && user?.id === partyId
+      ? true
+      : myFullName.length > 0 && normalizeName(partyName) === myFullName;
   const [source, setSource] = useState<OtcSource>('all');
   const [statusFilter, setStatusFilter] = useState<OtcContractStatus | 'ALL'>('ALL');
   const [contracts, setContracts] = useState<OtcContract[]>([]);
@@ -89,7 +101,7 @@ export default function OtcContractsPage() {
   const exercisedCount = contracts.filter((c) => c.status === 'EXERCISED').length;
   const expiredCount = contracts.filter((c) => c.status === 'EXPIRED').length;
   const itmCount = contracts.filter(
-    (c) => c.status === 'ACTIVE' && user?.id === c.buyerId && c.currentPrice != null && c.currentPrice > c.strikePrice,
+    (c) => c.status === 'ACTIVE' && isMe(c.buyerId, c.buyerName) && c.currentPrice != null && c.currentPrice > c.strikePrice,
   ).length;
 
   return (
@@ -180,13 +192,13 @@ export default function OtcContractsPage() {
                             <div className="text-sm space-y-0.5">
                               <div className="flex items-center gap-1.5">
                                 <span>Kupac: {c.buyerName}</span>
-                                {user?.id === c.buyerId && (
+                                {isMe(c.buyerId, c.buyerName) && (
                                   <Badge variant="info" className="text-[10px] px-1 py-0 h-4">VI</Badge>
                                 )}
                               </div>
                               <div className="text-muted-foreground flex items-center gap-1.5">
                                 <span>Prodavac: {c.sellerName}</span>
-                                {user?.id === c.sellerId && (
+                                {isMe(c.sellerId, c.sellerName) && (
                                   <Badge variant="info" className="text-[10px] px-1 py-0 h-4">VI</Badge>
                                 )}
                               </div>
@@ -209,7 +221,7 @@ export default function OtcContractsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {c.status === 'ACTIVE' && user?.id === c.buyerId ? (
+                            {c.status === 'ACTIVE' && isMe(c.buyerId, c.buyerName) ? (
                               <Button
                                 size="sm"
                                 disabled={busyContractId === c.id}

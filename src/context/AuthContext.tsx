@@ -4,6 +4,7 @@ import { authService } from '../services/authService';
 import { Permission } from '../types';
 import { decodeJwt } from '../utils/jwt';
 import { employeeService } from '../services/employeeService';
+import { clientService } from '../services/clientService';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
     let permissions: Permission[] = [];
-    let employeeId = 0;
+    let userId = 0;
     let firstName = nameParts[0] ? capitalize(nameParts[0]) : '';
     let lastName = nameParts[1] ? capitalize(nameParts[1]) : '';
 
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (employees.length > 0) {
           const emp = employees[0];
           permissions = (emp.permissions ?? []) as Permission[];
-          employeeId = emp.id;
+          userId = emp.id;
           firstName = emp.firstName || firstName;
           lastName = emp.lastName || lastName;
           // Admins always have ADMIN permission even if not in backend list
@@ -83,10 +84,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           permissions = [Permission.ADMIN];
         }
       }
+    } else if (payload.role === 'CLIENT') {
+      // BuyerId/sellerId u OTC ugovorima/pregovorima poredi se sa user.id,
+      // pa klijentu moramo razresiti pravi id (JWT nema id claim).
+      try {
+        const clientsResponse = await clientService.getAll({ email: payload.sub, page: 0, limit: 1 });
+        const clients = clientsResponse.content;
+        if (clients.length > 0) {
+          const cli = clients[0];
+          userId = cli.id;
+          firstName = cli.firstName || firstName;
+          lastName = cli.lastName || lastName;
+        }
+      } catch {
+        // Lookup nije obavezan za login flow — ako padne, ostavljamo userId=0,
+        // a OTC akcije koje zavise od identiteta će biti sakrivene (fail-safe).
+      }
     }
 
     const authUser: AuthUser = {
-      id: employeeId,
+      id: userId,
       email: payload.sub,
       username: emailName,
       firstName,
